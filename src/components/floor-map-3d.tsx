@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { floors, getFloor, toMetres, toMetresLength } from "@/lib/floor/building";
@@ -23,16 +23,17 @@ type Props = {
   highlightRoomId?: string;
   /** Where the person is on the route right now. Drawn as a blue "You" marker. */
   position?: RoutePoint;
-  /** Points the camera should frame. Leave out to show the whole building. */
+  /** Points the camera should frame. Only the ones on the floor being shown count; with fewer than two, the whole floor is framed. */
   focus?: RoutePoint[];
-  /** Draw only these floors (and the parts of the route on them). Leave out to draw the whole stack. */
-  visibleFloorIds?: string[];
+  /** Floor to show. The map follows it when it changes; the floor buttons let people look at the others. Defaults to `floor`. */
+  showFloorId?: string;
+  /** Change this (the step number, say) to send the map back to `showFloorId` after someone has looked at another floor. */
+  returnKey?: string | number;
+  /** An alarm is active on `floor`: it is marked as the fire floor. */
+  alarm?: boolean;
   className?: string;
 };
 
-// The floors are drawn much further apart than they really are (about 4 m), like an exploded
-// diagram, so each level can be seen from above without the one over it hiding it.
-const FLOOR_GAP = 42;
 const WALL_HEIGHT = 1.8; // low walls: rooms read as open boxes, like a doll's house
 const ROOM_COLOURS: Record<Room["kind"], number> = {
   room: 0xd9b382,
@@ -55,17 +56,12 @@ const HERE_COLOUR = 0x2563eb;
 const ARROW_SPACING = 3.5; // metres between direction arrows
 const ARROW_SPEED = 2.5; // metres per second
 
-const levelY = (floor: Floor) => floors.indexOf(floor) * FLOOR_GAP;
 const centreOf = (r: Rect): Point => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
 function world(floor: Floor, p: Point, height = 0) {
   const { x, z } = toMetres(floor, p);
-  return new THREE.Vector3(x, levelY(floor) + height, z);
-}
-
-function routeWorld(p: RoutePoint, height = 0) {
-  const floor = getFloor(p.floorId);
-  return floor ? world(floor, p, height) : null;
+  // Only one floor is ever in the scene, so every floor sits at height 0.
+  return new THREE.Vector3(x, height, z);
 }
 
 /** `onTop` labels show through walls and floors; the rest are hidden by whatever is in front of them. */
@@ -111,80 +107,56 @@ function slab(floor: Floor, rect: Rect, colour: number, thickness: number, top: 
   return mesh;
 }
 
-/** Every floor of the building, stacked, with the staircase shafts running through them. */
-function buildBuilding(active: Floor, blocked: Set<string>, highlightRoomId: string | undefined, visible: Set<string> | null) {
+/** One floor: its platform, rooms, staircases and (on the ground floor) the assembly field. */
+function buildFloor(floor: Floor, active: Floor, blocked: Set<string>, highlightRoomId: string | undefined) {
   const group = new THREE.Group();
 
-  for (const floor of floors) {
-    if (visible && !visible.has(floor.id)) continue;
-    // A solid plate under everything gives each level the "platform" look.
-    for (const rect of [...floor.corridors, ...floor.rooms]) group.add(slab(floor, rect, SLAB_COLOUR, 1.2, 0));
-    if (floor.field) {
-      group.add(slab(floor, floor.field, FIELD_COLOUR, 1.2, 0.2));
-      const label = textSprite("Assembly point", "#14532d", 6, true);
-      label.position.copy(world(floor, centreOf(floor.field), 7));
-      group.add(label);
-    }
-
-    for (const room of floor.rooms) {
-      const isBlocked = room.kind === "stairs" && blocked.has(room.id);
-      const isHere = floor === active && room.id === highlightRoomId;
-      const colour = isBlocked ? BLOCKED_COLOUR : isHere ? HERE_COLOUR : ROOM_COLOURS[room.kind];
-      const geometry = new THREE.BoxGeometry(
-        Math.max(toMetresLength(floor, room.w) - 0.3, 0.5),
-        WALL_HEIGHT,
-        Math.max(toMetresLength(floor, room.h) - 0.3, 0.5),
-      );
-      const box = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: colour }));
-      box.position.copy(world(floor, centreOf(room), WALL_HEIGHT / 2));
-      group.add(box);
-
-      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x4b3a26 }));
-      outline.position.copy(box.position);
-      group.add(outline);
-
-      // Staircases are labelled once, on the emergency floor, not five times.
-      const wantsLabel = room.name !== "" && (room.kind === "room" || (room.kind === "stairs" && floor === active));
-      if (wantsLabel) {
-        const text = isBlocked ? `${room.name} — BLOCKED` : room.name;
-        const label = textSprite(text, isBlocked ? "#7f1d1d" : room.kind === "stairs" ? "#065f46" : "#111827");
-        label.position.copy(world(floor, centreOf(room), WALL_HEIGHT + 1.6));
-        group.add(label);
-      }
-    }
-
-    const name = textSprite(floor === active ? `${floor.label} — FIRE` : floor.label, floor === active ? "#b91c1c" : "#111827", 7, true);
-    name.position.set(-78, levelY(floor) + 5, 45);
-    group.add(name);
+  // A solid plate under everything gives the level its "platform" look.
+  for (const rect of [...floor.corridors, ...floor.rooms]) group.add(slab(floor, rect, SLAB_COLOUR, 1.2, 0));
+  if (floor.field) {
+    group.add(slab(floor, floor.field, FIELD_COLOUR, 1.2, 0.2));
+    const label = textSprite("Assembly point", "#14532d", 6, true);
+    label.position.copy(world(floor, centreOf(floor.field), 7));
+    group.add(label);
   }
 
-  // Staircase shafts: a see-through column joining the same staircase on every floor.
-  if (visible) return group; // only worth drawing when the whole stack is shown
-  const bottom = floors[0];
-  for (const stair of bottom.rooms.filter((r) => r.kind === "stairs")) {
-    const top = floors.findLast((f) => f.rooms.some((r) => r.id === stair.id)) ?? bottom;
-    const height = levelY(top) - levelY(bottom);
-    if (height <= 0) continue;
-    const colour = blocked.has(stair.id) ? BLOCKED_COLOUR : ROOM_COLOURS.stairs;
-    const shaft = new THREE.Mesh(
-      new THREE.BoxGeometry(3.4, height, 3.4),
-      new THREE.MeshStandardMaterial({ color: colour, transparent: true, opacity: 0.28, depthWrite: false }),
+  for (const room of floor.rooms) {
+    const isBlocked = room.kind === "stairs" && blocked.has(room.id);
+    const isHere = floor === active && room.id === highlightRoomId;
+    const colour = isBlocked ? BLOCKED_COLOUR : isHere ? HERE_COLOUR : ROOM_COLOURS[room.kind];
+    const geometry = new THREE.BoxGeometry(
+      Math.max(toMetresLength(floor, room.w) - 0.3, 0.5),
+      WALL_HEIGHT,
+      Math.max(toMetresLength(floor, room.h) - 0.3, 0.5),
     );
-    shaft.position.copy(world(bottom, centreOf(stair), height / 2));
-    group.add(shaft);
+    const box = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: colour }));
+    box.position.copy(world(floor, centreOf(room), WALL_HEIGHT / 2));
+    group.add(box);
+
+    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x4b3a26 }));
+    outline.position.copy(box.position);
+    group.add(outline);
+
+    if (room.name !== "" && (room.kind === "room" || room.kind === "stairs")) {
+      const text = isBlocked ? `${room.name} — BLOCKED` : room.name;
+      const label = textSprite(text, isBlocked ? "#7f1d1d" : room.kind === "stairs" ? "#065f46" : "#111827");
+      label.position.copy(world(floor, centreOf(room), WALL_HEIGHT + 1.6));
+      group.add(label);
+    }
   }
   return group;
 }
 
 type Flow = { mesh: THREE.Object3D; from: THREE.Vector3; direction: THREE.Vector3; length: number; offset: number };
 
-function buildOverlay(active: Floor, fullRoute: RoutePoint[], pins: MapPin[], position: RoutePoint | undefined, visible: Set<string> | null) {
+/** The part of the route, the "You" marker and the pins that are on the floor being shown. */
+function buildOverlay(shown: Floor, active: Floor, fullRoute: RoutePoint[], pins: MapPin[], position: RoutePoint | undefined) {
   const group = new THREE.Group();
   const pulsing: THREE.Object3D[] = [];
   const flowing: Flow[] = [];
   // A route never returns to a floor it has left, so filtering keeps one continuous stretch.
-  const route = visible ? fullRoute.filter((p) => visible.has(p.floorId)) : fullRoute;
-  const points = route.flatMap((p) => routeWorld(p, 0.45) ?? []);
+  const route = fullRoute.filter((p) => p.floorId === shown.id);
+  const points = route.map((p) => world(shown, p, 0.45));
   const endsHere = route.length > 0 && route[route.length - 1] === fullRoute[fullRoute.length - 1];
 
   if (points.length > 0) {
@@ -214,7 +186,7 @@ function buildOverlay(active: Floor, fullRoute: RoutePoint[], pins: MapPin[], po
       }
     }
 
-    const here = position ? routeWorld(position, 1.2) : null;
+    const here = position?.floorId === shown.id ? world(shown, position, 1.2) : null;
     const marker = new THREE.Mesh(
       new THREE.SphereGeometry(1.1, 20, 20),
       here ? new THREE.MeshStandardMaterial({ color: HERE_COLOUR, emissive: HERE_COLOUR, emissiveIntensity: 0.6 }) : material,
@@ -229,7 +201,7 @@ function buildOverlay(active: Floor, fullRoute: RoutePoint[], pins: MapPin[], po
     }
 
     // Green cone = the end of the whole route. On a floor you only pass through, it is left out.
-    if (endsHere || !visible) {
+    if (endsHere) {
       const end = new THREE.Mesh(
         new THREE.ConeGeometry(1.4, 2.8, 20),
         new THREE.MeshStandardMaterial({ color: 0x16a34a, emissive: 0x16a34a, emissiveIntensity: 0.6 }),
@@ -241,9 +213,10 @@ function buildOverlay(active: Floor, fullRoute: RoutePoint[], pins: MapPin[], po
     }
   }
 
-  for (const pin of pins) {
+  // People waiting for help are all on the emergency floor.
+  for (const pin of shown === active ? pins : []) {
     const room = active.rooms.find((r) => r.id === pin.roomId);
-    if (!room || (visible && !visible.has(active.id))) continue;
+    if (!room) continue;
     const colour = PIN_COLOURS[pin.tone];
     const marker = new THREE.Group();
     const head = new THREE.Mesh(
@@ -265,14 +238,12 @@ function buildOverlay(active: Floor, fullRoute: RoutePoint[], pins: MapPin[], po
   return { group, pulsing, flowing };
 }
 
-/** A box around the whole stack, for the "whole building" camera. */
-function buildingBox() {
+/** A box around one whole floor, for when there is no route on it to zoom to. */
+function floorBox(floor: Floor) {
   const box = new THREE.Box3();
-  for (const floor of floors) {
-    for (const rect of [...floor.corridors, ...floor.rooms, ...(floor.field ? [floor.field] : [])]) {
-      box.expandByPoint(world(floor, { x: rect.x, y: rect.y }));
-      box.expandByPoint(world(floor, { x: rect.x + rect.w, y: rect.y + rect.h }, WALL_HEIGHT));
-    }
+  for (const rect of [...floor.corridors, ...floor.rooms, ...(floor.field ? [floor.field] : [])]) {
+    box.expandByPoint(world(floor, { x: rect.x, y: rect.y }));
+    box.expandByPoint(world(floor, { x: rect.x + rect.w, y: rect.y + rect.h }, WALL_HEIGHT));
   }
   return box;
 }
@@ -285,26 +256,49 @@ type SceneState = {
   flowing: Flow[];
 };
 
-/** Point the camera at a box from the south, looking down at an angle, far enough back to fit all of it. */
+const VIEW_DIRECTION = new THREE.Vector3(0.22, 0.62, 0.75).normalize();
+
+/** Point the camera at a box from the south, looking down at an angle, just far enough back to fit all of it. */
 function frame({ camera, controls }: SceneState, box: THREE.Box3) {
   const target = box.getCenter(new THREE.Vector3());
-  const radius = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 14);
-  // Fit the box's bounding sphere inside whichever is narrower: the vertical or the horizontal view angle.
-  const vertical = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const horizontal = Math.atan(Math.tan(vertical) * (camera.aspect || 1));
-  const distance = (radius / Math.sin(Math.min(vertical, horizontal))) * 1.05;
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), VIEW_DIRECTION).normalize();
+  const up = new THREE.Vector3().crossVectors(VIEW_DIRECTION, right);
+  const vertical = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  const horizontal = vertical * (camera.aspect || 1);
+  // Every corner of the box has to land inside the view, whichever way the screen is turned:
+  // a phone held upright is narrow, so there the width of the floor decides the distance.
+  let distance = 14;
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) {
+        const corner = new THREE.Vector3(x, y, z).sub(target);
+        const depth = corner.dot(VIEW_DIRECTION);
+        distance = Math.max(distance, depth + Math.abs(corner.dot(right)) / horizontal, depth + Math.abs(corner.dot(up)) / vertical);
+      }
+    }
+  }
   controls.target.copy(target);
-  camera.position.copy(target).add(new THREE.Vector3(0.22, 0.62, 0.75).normalize().multiplyScalar(distance));
+  // A fifth spare, for the labels and for the floor buttons laid over the bottom edge.
+  camera.position.copy(target).addScaledVector(VIEW_DIRECTION, distance * 1.2);
 }
 
+/** "Level 3" → "L3", "Ground" → "G": short enough for five buttons to fit across a phone. */
+const shortLabel = (floor: Floor) => (floor.label.startsWith("Level ") ? `L${floor.label.slice(6)}` : floor.label[0]);
+
 /**
- * 3D model of the building: every floor stacked, with the route and live pins on top.
- * Purely visual: every screen that uses it also shows the same information as text, so the
- * canvas is hidden from screen readers.
+ * 3D model of the building, one floor at a time, with the route and live pins on top. The row of
+ * floor buttons switches level. The canvas is purely visual: every screen that uses it also shows
+ * the same information as text, so it is hidden from screen readers (the floor buttons are not).
  */
-export function FloorMap3D({ floor, route, pins = [], blockedStairIds = [], highlightRoomId, position, focus, visibleFloorIds, className }: Props) {
+export function FloorMap3D({ floor, route, pins = [], blockedStairIds = [], highlightRoomId, position, focus, showFloorId, returnKey = "", alarm = false, className }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneState>(null);
+
+  // A floor picked by hand lasts until the floor to show or `returnKey` changes: then the map goes back.
+  const followId = showFloorId ?? floor.id;
+  const followKey = `${followId}:${returnKey}`;
+  const [picked, setPicked] = useState({ followKey, id: followId });
+  const shown = getFloor(picked.followKey === followKey ? picked.id : followId) ?? floor;
 
   // Renderer, camera and controls: created once.
   useEffect(() => {
@@ -365,20 +359,18 @@ export function FloorMap3D({ floor, route, pins = [], blockedStairIds = [], high
     };
   }, []);
 
-  // Building: rebuilt when a staircase is blocked or the highlighted room changes.
+  // Floor: rebuilt when another floor is picked, a staircase is blocked or the highlighted room changes.
   const blockedKey = blockedStairIds.join(",");
-  const visibleKey = visibleFloorIds?.join(",") ?? "";
   useEffect(() => {
     const current = sceneRef.current;
     if (!current) return;
-    const visible = visibleKey ? new Set(visibleKey.split(",")) : null;
-    const model = buildBuilding(floor, new Set(blockedKey ? blockedKey.split(",") : []), highlightRoomId, visible);
+    const model = buildFloor(shown, floor, new Set(blockedKey ? blockedKey.split(",") : []), highlightRoomId);
     current.scene.add(model);
     return () => {
       current.scene.remove(model);
       disposeTree(model);
     };
-  }, [floor, blockedKey, highlightRoomId, visibleKey]);
+  }, [shown, floor, blockedKey, highlightRoomId]);
 
   // Route, marker and pins: rebuilt when live data changes. Keyed by value so polling doesn't rebuild every tick.
   const overlayKey = JSON.stringify([route ?? [], pins, position ?? null]);
@@ -386,8 +378,7 @@ export function FloorMap3D({ floor, route, pins = [], blockedStairIds = [], high
     const current = sceneRef.current;
     if (!current) return;
     const [nextRoute, nextPins, nextPosition] = JSON.parse(overlayKey) as [RoutePoint[], MapPin[], RoutePoint | null];
-    const visible = visibleKey ? new Set(visibleKey.split(",")) : null;
-    const { group, pulsing, flowing } = buildOverlay(floor, nextRoute, nextPins, nextPosition ?? undefined, visible);
+    const { group, pulsing, flowing } = buildOverlay(shown, floor, nextRoute, nextPins, nextPosition ?? undefined);
     current.scene.add(group);
     current.pulsing = pulsing;
     current.flowing = flowing;
@@ -397,16 +388,59 @@ export function FloorMap3D({ floor, route, pins = [], blockedStairIds = [], high
       current.flowing = [];
       disposeTree(group);
     };
-  }, [floor, overlayKey, visibleKey]);
+  }, [shown, floor, overlayKey]);
 
-  // Camera: frame the given points, or the whole building.
+  // Camera: frame the focus points on this floor, or the whole floor.
   const focusKey = JSON.stringify(focus ?? null);
   useEffect(() => {
     const current = sceneRef.current;
     if (!current) return;
-    const points = ((JSON.parse(focusKey) as RoutePoint[] | null) ?? []).flatMap((p) => routeWorld(p) ?? []);
-    frame(current, points.length > 0 ? new THREE.Box3().setFromPoints(points) : buildingBox());
-  }, [focusKey]);
+    const points = ((JSON.parse(focusKey) as RoutePoint[] | null) ?? []).filter((p) => p.floorId === shown.id).map((p) => world(shown, p));
+    frame(current, points.length > 1 ? new THREE.Box3().setFromPoints(points) : floorBox(shown));
+  }, [shown, focusKey]);
 
-  return <div ref={mountRef} aria-hidden="true" data-testid="floor-map-3d" className={className ?? "h-80 w-full"} />;
+  const routeFloorIds = new Set(route?.map((p) => p.floorId));
+  const isFireFloor = (f: Floor) => alarm && f === floor;
+  /** What is on a floor, in words, for the button's accessible name. */
+  const notes = (f: Floor) =>
+    [
+      isFireFloor(f) ? "fire floor" : "",
+      position?.floorId === f.id ? "you are here" : "",
+      routeFloorIds.has(f.id) ? "on your route" : "",
+      f === floor && pins.length > 0 ? `${pins.length} waiting for help` : "",
+    ].filter(Boolean);
+
+  return (
+    <div className={`relative isolate ${className ?? "h-80 w-full"}`}>
+      <div ref={mountRef} aria-hidden="true" data-testid="floor-map-3d" className="absolute inset-0" />
+      <p className="pointer-events-none absolute top-2 left-2 rounded-lg bg-black/80 px-3 py-1.5 text-base font-bold text-white">
+        {shown.label}
+        {isFireFloor(shown) ? <span className="text-red-400"> — FIRE</span> : null}
+      </p>
+      <div role="group" aria-label="Floor shown on the map" className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5 px-2">
+        {floors.map((f) => {
+          const isShown = f === shown;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={isShown}
+              aria-label={[f.label, ...notes(f)].join(", ")}
+              onClick={() => setPicked({ followKey, id: f.id })}
+              className={`relative min-h-11 min-w-11 rounded-lg border-2 px-2 text-base font-extrabold ${
+                isShown ? "border-yellow-300 bg-yellow-300 text-black" : "border-white/70 bg-black/80 text-white"
+              }`}
+            >
+              {shortLabel(f)}
+              <span aria-hidden="true" className="absolute -top-1.5 right-0 left-0 flex justify-center gap-0.5">
+                {isFireFloor(f) ? <span className="size-2.5 rounded-full border border-white bg-red-600" /> : null}
+                {position?.floorId === f.id ? <span className="size-2.5 rounded-full border border-white bg-blue-600" /> : null}
+                {position?.floorId !== f.id && routeFloorIds.has(f.id) ? <span className="size-2.5 rounded-full border border-white bg-orange-500" /> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

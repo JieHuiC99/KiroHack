@@ -1,8 +1,8 @@
 # SafeWay
 
 Accessible evacuation guidance for campus emergencies. Hackathon prototype (Disaster Recovery theme),
-modelled on the Sunway University building: Ground, Mezzanine and Levels 1 to 3 in 3D, with the field as
-the assembly point.
+modelled on the Sunway University building: Ground, Mezzanine and Levels 1 to 3 in 3D, one floor at a time,
+with the field as the assembly point.
 
 > ⚠ **Prototype only.** Every floor was traced by hand from screenshots of the campus app. Room shapes and
 > the scale are approximate. The four corner stair blocks are **assumed** to be the fire staircases, and the
@@ -14,9 +14,9 @@ the assembly point.
 
 | URL | For | What it does |
 |---|---|---|
-| `/me` | Students and staff (phone) | One-time setup, then a 3D map with moving arrows: your floor to the best open staircase, **one floor at a time** on the way down (Continue to Level 2, Level 1, …), then across the ground floor to the field. "Whole building" shows the full stack. A turn arrow with each written step, Next step / Repeat / I need help, "I'm safe" check-in. Blind profile: same steps as audio + vibration with three full-width buttons and no map |
-| `/responder` | Helpers (phone) | Buzzes on new or escalated requests, Accept, 3D map to the person's waiting point, Mark evacuated |
-| `/dashboard` | Emergency team (laptop) | Simulate the alarm, block staircases (every phone re-routes), live 3D map with pins, escalation banner, headcount |
+| `/me` | Students and staff (phone) | One-time setup, then a 3D map with moving arrows: your floor to the best open staircase, **one floor at a time** on the way down (Continue to Level 2, Level 1, …), then across the ground floor to the field. The floor buttons on the map (G, M, L1, L2, L3) show any other level; the next step brings the map back to you. A turn arrow with each written step, Next step / Repeat / I need help, "I'm safe" check-in. Blind profile: same steps as audio + vibration with three full-width buttons and no map |
+| `/responder` | Helpers (phone) | Buzzes on new or escalated requests, Accept, 3D map of the fire floor with the person's waiting point, Mark evacuated |
+| `/dashboard` | Emergency team (laptop) | Simulate the alarm, block staircases (every phone re-routes), live 3D map with pins and a floor switcher, escalation banner, headcount |
 
 ## Run it
 
@@ -54,10 +54,10 @@ npm run test:e2e              # the demo, end to end (needs: npx playwright inst
 - `src/lib/floor/level3.ts` — Level 3 in full: rooms, corridors, doors, walkways, staircases.
 - `src/lib/floor/lower-floors.ts` — Ground, Mezzanine, Level 1, Level 2 (shapes only) and the ground-floor
   walks from each staircase to the field (`groundExits`).
-- `src/lib/floor/building.ts` — stacks the floors, lines them up, and builds the full route
+- `src/lib/floor/building.ts` — lists the floors, lines them up, and builds the full route
   (room → staircase → down each floor → field).
 - `src/lib/floor/routing.ts` — shortest route on one floor + the written steps.
-- `src/components/floor-map-3d.tsx` — Three.js model. Floors are drawn 42 m apart (not to scale) so each can be seen.
+- `src/components/floor-map-3d.tsx` — Three.js model. Draws one floor at a time, never the stack; the floor buttons switch level and the camera fits the floor (or the route on it) to the screen, upright or sideways.
 - `src/server/emergency.ts` — all business rules (alarm, help requests, escalation, check-in).
 - `src/app/api/*` — thin JSON routes; every screen polls `GET /api/state`.
 

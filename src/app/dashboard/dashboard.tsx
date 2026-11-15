@@ -74,15 +74,19 @@ export function Dashboard() {
             floor={floor}
             pins={toPins(requests.filter((r) => r.status !== "resolved"))}
             blockedStairIds={emergency?.blockedStairIds ?? []}
-            className="h-96 w-full overflow-hidden rounded-xl border sm:h-[34rem]"
+            alarm={emergency !== null}
+            className="h-[55dvh] min-h-72 w-full overflow-hidden rounded-xl border sm:h-[34rem]"
           />
-          <p className="text-base">Drag to rotate, scroll or pinch to zoom. Green columns are the fire staircases, pins are people waiting for help, and the green field on the ground floor is the assembly point.</p>
+          <p className="text-base">
+            One floor at a time: use the floor buttons to switch level. Drag to rotate, scroll or pinch to zoom. Green blocks are the fire staircases, pins are
+            people waiting for help, and the green field on the ground floor is the assembly point.
+          </p>
 
           <fieldset disabled={!emergency} className="rounded-xl border-2 border-black p-4 disabled:opacity-50">
             <legend className="px-2 font-bold">Blocked staircases (routes update on every phone)</legend>
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
               {staircases(floor).map((stair) => (
-                <label key={stair.id} className="flex cursor-pointer items-center gap-2">
+                <label key={stair.id} className="flex min-h-11 cursor-pointer items-center gap-3">
                   <input
                     type="checkbox"
                     className="size-5"

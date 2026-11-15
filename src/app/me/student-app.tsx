@@ -62,12 +62,12 @@ function Standby({ settings, offline, loading, onEdit }: { settings: Settings; o
             position={route.path[0]}
             focus={route.path}
             highlightRoomId={settings.roomId}
-            className="h-[42dvh] min-h-64 w-full overflow-hidden rounded-xl border-2 border-black"
+            className="h-[45dvh] min-h-72 w-full overflow-hidden rounded-xl border-2 border-black"
           />
           <p>
             From {room?.name}, {level3.label}: about {route.metres} metres to <strong>{theStair(route.stairName)}</strong>
             {goesOutside ? `, down ${level3.level} floors, then out to ${ground.assemblyPoint}` : ", where a helper meets you on the landing"}. Drag to rotate,
-            pinch to zoom.
+            pinch to zoom, and use the floor buttons to look at each level.
           </p>
         </section>
       ) : (
@@ -138,7 +138,6 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const [progress, setProgress] = useState({ routeKey, index: -1 });
   const index = progress.routeKey === routeKey ? progress.index : -1;
   const [error, setError] = useState("");
-  const [wholeBuilding, setWholeBuilding] = useState(false);
 
   const rerouted = emergency.blockedStairIds.length > 0;
   const start = showMap ? "Follow the arrows on the map" : "Press Next step to begin";
@@ -156,13 +155,6 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const position = route ? (step?.at ?? route.path[0]) : undefined;
   // The map shows one floor at a time: the floor the current step is on.
   const shownFloor = getFloor(position?.floorId ?? floor.id) ?? floor;
-  const onShownFloor = route?.path.filter((p) => p.floorId === shownFloor.id) ?? [];
-  const floorCorners = shownFloor.corridors.flatMap((c) => [
-    { x: c.x, y: c.y, floorId: shownFloor.id },
-    { x: c.x + c.w, y: c.y + c.h, floorId: shownFloor.id },
-  ]);
-  // Zoom to the route on this floor; on floors you only pass through, show the whole floor.
-  const focus = wholeBuilding ? route?.path : onShownFloor.length > 1 ? onShownFloor : floorCorners;
   const nextFloorId = route && index + 1 < route.steps.length ? route.steps[index + 1].at?.floorId : undefined;
   const nextFloor = nextFloorId && nextFloorId !== shownFloor.id ? getFloor(nextFloorId) : undefined;
 
@@ -243,38 +235,27 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   );
 
   return (
-    <main className="flex min-h-dvh flex-col bg-black text-white md:grid md:h-dvh md:grid-cols-[3fr_2fr] md:grid-rows-[auto_1fr]">
+    <main className="flex min-h-dvh flex-col bg-black text-white md:grid md:h-dvh md:grid-cols-[3fr_2fr] md:grid-rows-[auto_minmax(0,1fr)]">
       <h1 className="p-3 text-center text-xl font-extrabold tracking-wide text-yellow-300 sm:text-2xl md:col-span-2">
         FIRE EMERGENCY — {floor.label.toUpperCase()}
       </h1>
 
       {showMap && route ? (
-        <div className="relative h-[40dvh] min-h-56 w-full md:h-full">
-          <FloorMap3D
-            floor={floor}
-            route={route.path}
-            position={position}
-            focus={focus}
-            visibleFloorIds={wholeBuilding ? undefined : [shownFloor.id]}
-            blockedStairIds={emergency.blockedStairIds}
-            highlightRoomId={settings.roomId}
-            className="size-full"
-          />
-          <p className="absolute top-2 left-2 rounded-lg bg-black/80 px-3 py-2 text-base font-bold text-white">
-            {wholeBuilding ? "Whole building" : shownFloor.label}
-          </p>
-          <button
-            type="button"
-            aria-pressed={wholeBuilding}
-            onClick={() => setWholeBuilding(!wholeBuilding)}
-            className="absolute top-2 right-2 min-h-11 rounded-lg bg-black/80 px-3 text-base font-bold text-white"
-          >
-            {wholeBuilding ? "This floor only" : "Whole building"}
-          </button>
-        </div>
+        <FloorMap3D
+          floor={floor}
+          route={route.path}
+          position={position}
+          focus={route.path}
+          showFloorId={shownFloor.id}
+          returnKey={index}
+          alarm
+          blockedStairIds={emergency.blockedStairIds}
+          highlightRoomId={settings.roomId}
+          className="h-[42dvh] min-h-64 w-full md:h-full"
+        />
       ) : null}
 
-      <div className={`flex flex-1 flex-col gap-3 p-3 ${showMap && route ? "" : "md:col-span-2 md:mx-auto md:w-full md:max-w-xl"}`}>
+      <div className={`flex flex-1 flex-col gap-3 p-3 md:overflow-y-auto ${showMap && route ? "" : "md:col-span-2 md:mx-auto md:w-full md:max-w-xl"}`}>
         <section aria-live="assertive" aria-atomic="true" className="flex items-center gap-3 rounded-2xl border-2 border-white p-3 sm:p-4">
           {step?.arrow && !isSafe ? <TurnArrow turn={step.arrow} /> : null}
           <div>
