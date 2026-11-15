@@ -59,15 +59,13 @@ jobs:
           done
           [ -z "$missing" ] || { echo "::error::Missing secrets/variables:$missing (see header of deploy.yml)"; exit 1; }
       - run: npm ci
-      - name: Migrate database (TypeORM + Better Auth)
+      - name: Migrate database (TypeORM)
         env:
           DATABASE_URL: ${{ secrets.DIRECT_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
           DATABASE_SSL: "true"
-          BETTER_AUTH_SECRET: migration-only-placeholder-secret-0000
         run: |
           npm run db:migrate
-          npx auth migrate --yes
       - name: Build and deploy to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

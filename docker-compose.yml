@@ -29,7 +29,6 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/app
-      BETTER_AUTH_URL: http://localhost:8080
     ports:
       - "8080:3000"
 

@@ -17,10 +17,11 @@ test("wheelchair user gets help during a fire alarm", async ({ browser, request 
   await expect(student.getByText("No emergency right now.")).toBeVisible();
 
   await responder.goto("/responder");
-  await responder.getByLabel("Your name").fill("Ben");
-  await responder.getByRole("button", { name: "Continue" }).click();
+  await expect(responder.getByRole("heading", { name: "Help requests — Emergency administrator" })).toBeVisible();
 
-  await dashboard.goto("/dashboard");
+  await dashboard.goto("/");
+  await expect(dashboard).toHaveURL(/\/dashboard$/);
+  await expect(dashboard.getByText("Emergency administrator", { exact: true })).toBeVisible();
   await dashboard.getByRole("button", { name: /Simulate fire alarm/ }).click();
   await expect(dashboard.getByText(/FIRE EMERGENCY ACTIVE/)).toBeVisible();
 
@@ -29,8 +30,8 @@ test("wheelchair user gets help during a fire alarm", async ({ browser, request 
   await expect(student.getByText(/Help requested/).first()).toBeVisible();
 
   await responder.getByRole("button", { name: /Accept/ }).click();
-  await expect(student.getByText(/Ben has accepted/)).toBeVisible();
-  await expect(dashboard.getByText("Accepted by Ben")).toBeVisible();
+  await expect(student.getByText(/Emergency administrator has accepted/)).toBeVisible();
+  await expect(dashboard.getByText("Accepted by Emergency administrator")).toBeVisible();
 
   await responder.getByRole("button", { name: /Mark Aisha as evacuated/ }).click();
   await expect(dashboard.getByText("Resolved — evacuated")).toBeVisible();

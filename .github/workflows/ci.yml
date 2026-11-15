@@ -33,8 +33,6 @@ jobs:
       # Values mirror .env.test (committed, no secrets)
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/app_test
       DB_SYNC: "true"
-      BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
-      BETTER_AUTH_URL: http://localhost:3100
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,8 +45,6 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
-      - name: Create Better Auth tables
-        run: npx auth migrate --yes
       - name: Migrations match entities
         # Once the first migration exists, a fresh DB + all migrations must equal the entities.
         # Fails the PR if someone changed an entity without `npm run db:generate`.

@@ -7,9 +7,8 @@ import type { HelpInput, LiveState } from "@/lib/validation/emergency";
 
 // Service layer: the only place that talks to TypeORM for the emergency flow.
 //
-// ⚠ Hackathon decision: there is no sign-in on these flows, so anyone who can reach the URL
-// can trigger an alarm or accept a request. Before real use, gate every function here with
-// requireUser() and a role check (see README "Decisions").
+// The demo uses one shared Emergency administrator role without authentication.
+// Anyone who can reach the app can trigger an alarm or manage help requests.
 
 /** Seconds a request can sit unanswered before each escalation. Kept short for the demo. */
 const ESCALATION_SECONDS = Number(process.env.ESCALATION_SECONDS ?? 15);

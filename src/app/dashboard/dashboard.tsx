@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { FloorMap3D } from "@/components/floor-map-3d";
 import { RequestList, toPins } from "@/components/request-list";
 import { post, secondsSince, useLiveState } from "@/lib/client/live";
+import { DEFAULT_USER } from "@/lib/default-user";
 import { getFloor, level3 } from "@/lib/floor/building";
 import { staircases } from "@/lib/floor/routing";
 
@@ -35,6 +37,7 @@ export function Dashboard() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">SafeWay control dashboard</h1>
+          <p>{DEFAULT_USER.name}</p>
           <p role="status">
             {offline
               ? "No connection. Reconnecting…"
@@ -59,6 +62,10 @@ export function Dashboard() {
           </button>
         )}
       </header>
+      <nav aria-label="Demo screens" className="flex flex-wrap gap-4">
+        <Link href="/me" className="underline">My evacuation</Link>
+        <Link href="/responder" className="underline">Help requests and response</Link>
+      </nav>
       {error ? <p role="alert" className="font-semibold text-red-800">{error}</p> : null}
 
       {needsMarshal.length > 0 ? (

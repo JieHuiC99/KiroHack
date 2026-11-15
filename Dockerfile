@@ -12,9 +12,6 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM base AS builder
-# Placeholder so Better Auth doesn't complain while Next collects page data. It is NOT a real
-# secret and does not reach the runner stage — the real one is injected at runtime.
-ENV BETTER_AUTH_SECRET=build-only-placeholder-never-used-at-runtime
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

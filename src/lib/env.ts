@@ -11,8 +11,6 @@ const schema = z
     DIRECT_URL: z.string().url().optional(),
     DB_SYNC: bool,
     DATABASE_SSL: bool,
-    BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
-    BETTER_AUTH_URL: z.string().url().optional(),
     VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
   })
   .refine((env) => !(env.VERCEL_ENV === "production" && env.DB_SYNC === "true"), {

@@ -4,13 +4,12 @@ import { FloorMap3D } from "@/components/floor-map-3d";
 import { RequestList, toPins } from "@/components/request-list";
 import { vibrate, VIBRATION } from "@/lib/client/announce";
 import { post, useLiveState } from "@/lib/client/live";
-import { useStored } from "@/lib/client/stored";
+import { DEFAULT_USER } from "@/lib/default-user";
 import { findEvacuationRoute, getFloor, level3 } from "@/lib/floor/building";
 
 export function ResponderApp() {
-  const { value: name, save, ready } = useStored<string>("safeway.responder");
+  const name = DEFAULT_USER.name;
   const { state, offline } = useLiveState();
-  const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
 
   // Buzz whenever something new needs attention: a new request, or one that just escalated.
@@ -21,30 +20,6 @@ export function ResponderApp() {
   useEffect(() => {
     if (attention) vibrate(VIBRATION.alarm);
   }, [attention]);
-
-  if (!ready) return null;
-  if (!name) {
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-6 p-6 text-xl">
-        <h1 className="text-3xl font-bold">Responder sign-in</h1>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (draft.trim()) save(draft.trim());
-          }}
-        >
-          <label className="flex flex-col gap-2 font-semibold">
-            Your name
-            <input required value={draft} onChange={(event) => setDraft(event.target.value)} className="rounded-lg border-2 border-black p-4 font-normal" />
-          </label>
-          <button type="submit" className="min-h-16 rounded-xl bg-black p-4 text-2xl font-bold text-white">
-            Continue
-          </button>
-        </form>
-      </main>
-    );
-  }
 
   const floor = (state?.emergency && getFloor(state.emergency.floorId)) || level3;
   const blocked = state?.emergency?.blockedStairIds ?? [];
@@ -59,10 +34,7 @@ export function ResponderApp() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-4 p-3 text-base sm:p-4 sm:text-lg">
       <header className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Responder: {name}</h1>
-        <button type="button" className="underline" onClick={() => save(null)}>
-          Switch user
-        </button>
+        <h1 className="text-2xl font-bold">Help requests — {name}</h1>
       </header>
 
       <p role="status" className="rounded-xl border-2 border-black p-4 text-xl font-semibold">
@@ -91,7 +63,7 @@ export function ResponderApp() {
                   <button
                     type="button"
                     className="min-h-14 w-full rounded-xl bg-red-800 p-3 text-xl font-bold text-white"
-                    onClick={() => act(request.id, { action: "accept", responderName: name })}
+                    onClick={() => act(request.id, { action: "accept" })}
                   >
                     Accept — I&apos;ll help {request.personName}
                   </button>

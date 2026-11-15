@@ -20,13 +20,10 @@
     "db:migrate": "npm run typeorm -- migration:run -d src/db/cli-data-source.ts",
     "db:revert": "npm run typeorm -- migration:revert -d src/db/cli-data-source.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "auth:migrate": "auth migrate --yes",
     "docker:app": "docker compose --profile app up --build",
-    "auth:migrate:test": "node scripts/with-env.mjs .env.test auth migrate --yes",
-    "setup": "npm run db:up && npm run auth:migrate && npm run auth:migrate:test && npm run db:seed"
+    "setup": "npm run db:up && npm run db:seed"
   },
   "dependencies": {
-    "better-auth": "^1.7.25",
     "next": "16.4.6",
     "pg": "^8.23.1",
     "react": "19.3.0",
@@ -48,7 +45,6 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.3.0",
-    "auth": "^1.7.25",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "jsdom": "^31.0.1",

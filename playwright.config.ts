@@ -17,7 +17,7 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  // No sign-in on the demo flows, so no auth setup project (see README "Decisions").
+  // All screens use the shared Emergency administrator role without sign-in.
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: process.env.PW_CHANNEL } }],
   webServer: {
     // Always the production build: it is what judges see, and Next 16 refuses a second

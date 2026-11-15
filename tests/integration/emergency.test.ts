@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { POST as helpRoute } from "@/app/api/help/route";
+import { POST as helpActionRoute } from "@/app/api/help/[id]/route";
+import { DEFAULT_USER } from "@/lib/default-user";
 import {
   acceptHelp,
   activateEmergency,
@@ -75,6 +77,28 @@ describe("/api/help route handler", () => {
     await activateEmergency("uni-l3");
     expect((await post({ ...aisha, personName: " " })).status).toBe(400);
     expect((await post({ ...aisha, profile: "vip" })).status).toBe(400);
+  });
+});
+
+describe("/api/help/[id] shared administrator", () => {
+  it("accepts and resolves without a session and ignores a supplied responder identity", async () => {
+    await activateEmergency("uni-l3");
+    const help = await requestHelp(aisha);
+    const post = (body: unknown) => helpActionRoute(
+      new Request(`http://test/api/help/${help.id}`, { method: "POST", body: JSON.stringify(body) }),
+      { params: Promise.resolve({ id: help.id }) },
+    );
+
+    const accepted = await post({ action: "accept", responderName: "Another user" });
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toEqual({ ok: true });
+    expect((await getLiveState()).requests[0]).toMatchObject({
+      status: "accepted", responderName: DEFAULT_USER.name,
+    });
+
+    const resolved = await post({ action: "resolve" });
+    expect(await resolved.json()).toEqual({ ok: true });
+    expect((await getLiveState()).requests[0].status).toBe("resolved");
   });
 });
 

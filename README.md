@@ -14,6 +14,7 @@ with the field as the assembly point.
 
 | URL | For | What it does |
 |---|---|---|
+| `/` → `/dashboard` | Default Emergency administrator | Opens the control dashboard directly; no account or role selection |
 | `/me` | Students and staff (phone) | One-time setup, then a 3D map with moving arrows: your floor to the best open staircase, **one floor at a time** on the way down (Continue to Level 2, Level 1, …), then across the ground floor to the field. The floor buttons on the map (G, M, L1, L2, L3) show any other level; the next step brings the map back to you. A turn arrow with each written step, Next step / Repeat / I need help, "I'm safe" check-in. Blind profile: same steps as audio + vibration with three full-width buttons and no map |
 | `/responder` | Helpers (phone) | Buzzes on new or escalated requests, Accept, 3D map of the fire floor with the person's waiting point, Mark evacuated |
 | `/dashboard` | Emergency team (laptop) | Simulate the alarm, block staircases (every phone re-routes), live 3D map with pins and a floor switcher, escalation banner, headcount |
@@ -21,14 +22,14 @@ with the field as the assembly point.
 ## Run it
 
 ```bash
-cp .env.example .env          # then set BETTER_AUTH_SECRET (npx auth@latest secret)
+cp .env.example .env          # default local database settings; no auth secret needed
 npm install
-npm run setup                 # Docker Postgres + tables
+npm run setup                 # Docker Postgres + emergency tables (resets demo state)
 npm run dev                   # http://localhost:3000
 ```
 
 No Docker? Point `DATABASE_URL` in `.env` and `.env.test` at any Postgres that has `app` and `app_test` databases,
-then run `npm run auth:migrate && npm run auth:migrate:test && npm run db:seed`.
+then run `npm run db:seed` (with `DB_SYNC=true` for local table creation).
 
 To try it on real phones, deploy to Vercel (or run `npm run build && npm start` and open
 `http://<laptop-ip>:3000` on the same Wi-Fi). `npm run db:seed` resets the demo state.
@@ -79,9 +80,11 @@ from `routableFloors`. Each floor has its own `transform` because each screensho
 
 - **Polling (1.5 s) instead of WebSockets/MQTT**: runs unchanged on Vercel; nobody notices the delay.
 - **One Next.js app instead of React Native + Electron + NestJS**: three pages, one deploy, 4-hour build.
-- **No sign-in on the demo flows**: people type a name; anyone with the URL can trigger the alarm.
-  Better Auth and `/sign-in` are still in the project. Before real use: add roles, `requireUser()` in
-  `src/server/emergency.ts`, and guard `/dashboard` in `src/proxy.ts`.
+- **One default role: Emergency administrator.** `/` opens `/dashboard` directly. There are no
+  accounts, passwords, authentication endpoints, session cookies or role switches. The response screen
+  automatically uses the shared administrator identity. `/me` still collects a person's name, room and
+  accessibility preferences for evacuation guidance; this is not account registration. Anyone with
+  the URL can use all demo controls. This shared role is for the prototype, not production access control.
 - **Location = the room saved in setup**, not GPS/beacons. QR codes are hard to aim at when you can't
   see; NFC door tags are the planned next step.
 - **Escalation is computed from waiting time** (`ESCALATION_SECONDS`, default 15), so no background job.

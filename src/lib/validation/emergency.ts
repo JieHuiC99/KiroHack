@@ -17,7 +17,7 @@ export const helpInput = z.object({
 export type HelpInput = z.infer<typeof helpInput>;
 
 export const helpActionInput = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("accept"), responderName: name }),
+  z.object({ action: z.literal("accept") }),
   z.object({ action: z.literal("resolve") }),
 ]);
 
