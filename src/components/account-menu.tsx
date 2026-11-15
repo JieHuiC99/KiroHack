@@ -88,32 +88,40 @@ export function AccountMenu({ user }: { user: AppUser | null | undefined }) {
   );
 }
 
-/** Home plus the screens this person's role may open. The current one is marked for screen readers too. */
-export function AppNav({ user }: { user: AppUser | null | undefined }) {
-  const pathname = usePathname();
-  const links = [
+type NavLink = { href: string; short: string };
+
+/** Home plus the screens this person's role may open. */
+export function navLinks(user: AppUser | null | undefined): NavLink[] {
+  return [
     { href: "/", short: "Home" },
     ...(user ? SCREENS.filter((s) => s.short && s.roles.includes(user.role)).map((s) => ({ href: s.href, short: s.short! })) : []),
   ];
+}
+
+const HomeIcon = () => (
+  <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 11 12 4l9 7M5 10v10h5v-6h4v6h5V10" />
+  </svg>
+);
+
+/** Desktop: every link in a row inside the header bar. The current one is marked for screen readers too. */
+export function AppNav({ user }: { user: AppUser | null | undefined }) {
+  const pathname = usePathname();
   return (
-    <nav aria-label="Main" className="-mx-3 overflow-x-auto px-3">
-      <ul className="flex w-max gap-2 pb-1">
-        {links.map((link) => {
+    <nav aria-label="Main" className="hidden min-w-0 flex-1 lg:block">
+      <ul className="flex items-center gap-0.5">
+        {navLinks(user).map((link) => {
           const current = pathname === link.href;
           return (
             <li key={link.href}>
               <Link
                 href={link.href}
                 aria-current={current ? "page" : undefined}
-                className={`flex min-h-11 items-center gap-1.5 rounded-full border-2 px-4 text-[15px] font-bold whitespace-nowrap ${
-                  current ? "border-[#17323a] bg-[#17323a] text-white" : "border-[#cfe0dc] bg-white text-[#17323a] hover:border-[#1e4a55]"
+                className={`flex min-h-10 items-center gap-1.5 rounded-full px-3 text-[15px] font-bold whitespace-nowrap ${
+                  current ? "bg-[#17323a] text-white" : "text-[#17323a] hover:bg-[#eef7f4]"
                 }`}
               >
-                {link.href === "/" ? (
-                  <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 11 12 4l9 7M5 10v10h5v-6h4v6h5V10" />
-                  </svg>
-                ) : null}
+                {link.href === "/" ? <HomeIcon /> : null}
                 {link.short}
               </Link>
             </li>
@@ -121,5 +129,72 @@ export function AppNav({ user }: { user: AppUser | null | undefined }) {
         })}
       </ul>
     </nav>
+  );
+}
+
+/** Phone: the three-line button. Opens the same links as a full-width list under the header. */
+export function MobileNav({ user }: { user: AppUser | null | undefined }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  // Opened on one page, it starts closed on the next.
+  const [openedOn, setOpenedOn] = useState(pathname);
+  const isOpen = open && openedOn === pathname;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen]);
+
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        aria-label={isOpen ? "Close menu" : "Open menu"}
+        onClick={() => {
+          setOpenedOn(pathname);
+          setOpen(!isOpen);
+        }}
+        className="flex size-11 shrink-0 items-center justify-center rounded-full border-2 border-[#cfe0dc] bg-white text-[#17323a] lg:hidden"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+          {isOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+        </svg>
+      </button>
+      {isOpen ? (
+        <nav id={panelId} aria-label="Main" className="absolute inset-x-0 top-full z-30 border-b-2 border-[#cfe0dc] bg-white px-3 pt-2 pb-3 shadow-lg lg:hidden">
+          <ul className="flex flex-col gap-1">
+            {navLinks(user).map((link) => {
+              const current = pathname === link.href;
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    aria-current={current ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                    className={`flex min-h-12 items-center gap-2 rounded-2xl px-4 text-lg font-bold ${
+                      current ? "bg-[#17323a] text-white" : "text-[#17323a] hover:bg-[#eef7f4]"
+                    }`}
+                  >
+                    {link.href === "/" ? <HomeIcon /> : null}
+                    {link.short}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      ) : null}
+    </>
   );
 }

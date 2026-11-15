@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AccountMenu, AppNav } from "@/components/account-menu";
+import { AccountMenu, AppNav, MobileNav } from "@/components/account-menu";
 import { SunSafeLogo } from "@/components/sunsafe-logo";
 import { useAccount } from "@/lib/client/account";
 import type { Turn } from "@/lib/floor/types";
@@ -45,18 +45,46 @@ export function ScreenHeader({ account = true, nav = true, ...props }: HeaderPro
   return account || nav ? <SignedInHeader account={account} nav={nav} {...props} /> : <HeaderRow {...props} />;
 }
 
-/** Looks up the signed-in person once and shares it between the account button and the nav bar. */
-function SignedInHeader({ account, nav, ...props }: HeaderProps & { account: boolean; nav: boolean }) {
+/**
+ * The app bar on signed-in screens. It spans the whole window even inside the narrow phone layouts,
+ * so on a computer the nav has room to sit in one row; on a phone the links fold into a menu button.
+ * Sticks to the top while scrolling.
+ */
+function SignedInHeader({ account, nav, pill, tone, home = "/", right }: HeaderProps & { account: boolean; nav: boolean }) {
   const user = useAccount();
   return (
-    <div className="flex flex-col gap-2">
-      <HeaderRow {...props} accountMenu={account ? <AccountMenu user={user} /> : null} />
-      {nav ? <AppNav user={user} /> : null}
+    <div className="sticky top-0 z-30 -mt-3 w-screen self-center border-b border-[#e3eeeb] bg-white/95 backdrop-blur">
+      <header className="relative mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:px-5 md:gap-4">
+        <Link href={home} className="flex min-h-11 shrink-0 items-center gap-2 rounded-full pr-2 text-lg font-extrabold tracking-tight">
+          <SunSafeLogo />
+          SunSafe
+        </Link>
+        {nav ? <AppNav user={user} /> : <span className="flex-1" />}
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          {right}
+          {pill ? <Pill text={pill} tone={tone} /> : null}
+          {account ? <AccountMenu user={user} /> : null}
+          {nav ? <MobileNav user={user} /> : null}
+        </div>
+      </header>
     </div>
   );
 }
 
-function HeaderRow({ pill, tone, home = "/", right, accountMenu }: Omit<HeaderProps, "account" | "nav"> & { accountMenu?: ReactNode }) {
+function Pill({ text, tone }: { text: string; tone?: PillTone }) {
+  return (
+    <span
+      className={`flex min-w-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+        tone === "alarm" ? "bg-[#c62828] text-white" : tone === "info" ? "bg-[#ffe3cc] text-[#8a3f0c]" : "bg-[#dff3e8] text-[#14532d]"
+      }`}
+    >
+      {tone === "alarm" ? <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-white" /> : null}
+      <span className="truncate">{text}</span>
+    </span>
+  );
+}
+
+function HeaderRow({ pill, tone, home = "/", right }: Omit<HeaderProps, "account" | "nav">) {
   return (
     <header className="flex items-center justify-between gap-2">
       <Link href={home} className="flex min-h-11 items-center gap-2 rounded-full pr-2 text-lg font-extrabold tracking-tight">
@@ -65,17 +93,7 @@ function HeaderRow({ pill, tone, home = "/", right, accountMenu }: Omit<HeaderPr
       </Link>
       <div className="flex min-w-0 items-center gap-2">
         {right}
-        {pill ? (
-          <span
-            className={`flex min-w-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-              tone === "alarm" ? "bg-[#c62828] text-white" : tone === "info" ? "bg-[#ffe3cc] text-[#8a3f0c]" : "bg-[#dff3e8] text-[#14532d]"
-            }`}
-          >
-            {tone === "alarm" ? <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-white" /> : null}
-            <span className="truncate">{pill}</span>
-          </span>
-        ) : null}
-        {accountMenu}
+        {pill ? <Pill text={pill} tone={tone} /> : null}
       </div>
     </header>
   );
