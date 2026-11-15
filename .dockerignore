@@ -1,0 +1,15 @@
+# Keep secrets, local state and dev artefacts out of the build context
+.git
+.github
+node_modules
+.next
+.env
+.env.*
+!.env.example
+*.log
+coverage
+test-results
+playwright-report
+blob-report
+Dockerfile
+docker-compose.yml
