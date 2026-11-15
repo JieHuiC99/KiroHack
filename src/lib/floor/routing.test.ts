@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findEvacuationRoute, floors, ground, level3 } from "./building";
-import { buildGraph, findRoute, selectableRooms, staircases, turnBetween } from "./routing";
+import { bombaLifts, buildGraph, findRoute, remainingPath, selectableRooms, staircases, turnBetween } from "./routing";
 
 describe("level 3 floor data", () => {
   it("puts every door on a corridor centre line", () => {
@@ -21,11 +21,18 @@ describe("building data", () => {
     for (const floor of floors) {
       expect(staircases(floor).map((s) => s.id).sort()).toEqual(ids);
     }
-    expect(Object.keys(ground.groundExits!).sort()).toEqual(ids);
+    expect(Object.keys(ground.groundExits!).sort()).toEqual(["bomba-e", "bomba-w", ...ids]);
   });
 
-  it("has unique room ids apart from the staircases", () => {
-    const ids = floors.flatMap((f) => f.rooms.filter((r) => r.kind !== "stairs").map((r) => r.id));
+  it("has the two Bomba lifts on every floor, apart from the ordinary lifts", () => {
+    for (const floor of floors) {
+      expect(bombaLifts(floor).map((l) => l.id).sort()).toEqual(["bomba-e", "bomba-w"]);
+      expect(floor.rooms.some((r) => r.kind === "lift")).toBe(true);
+    }
+  });
+
+  it("has unique room ids apart from the staircases and Bomba lifts", () => {
+    const ids = floors.flatMap((f) => f.rooms.filter((r) => r.kind !== "stairs" && r.kind !== "bombaLift").map((r) => r.id));
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
@@ -45,10 +52,24 @@ describe("findRoute (same floor)", () => {
     expect(findRoute(level3, "uc-3-3", { blockedStairIds: all })).toBeNull();
   });
 
-  it("tells people who can't use stairs to wait on the landing", () => {
-    const last = findRoute(level3, "uc-3-3", { needsAssistance: true })!.steps.at(-1)!;
-    expect(last.text).toContain("wait on the landing of the south-west staircase");
-    expect(last.text).toContain("Do not use the lift");
+  it("sends people who can't use stairs to the nearest Bomba lift to wait for a helper", () => {
+    const route = findRoute(level3, "uc-3-3", { needsAssistance: true })!;
+    expect(route).toMatchObject({ stairId: "bomba-w", exitKind: "bombaLift" });
+    const last = route.steps.at(-1)!;
+    expect(last.wait).toBe(true);
+    expect(last.text).toContain("Wait in front of the west Bomba lift");
+    expect(last.text).toContain("Do not use the ordinary lifts");
+  });
+
+  it("never sends people who can walk to a lift", () => {
+    for (const room of selectableRooms(level3)) expect(findRoute(level3, room.id)?.exitKind).toBe("stairs");
+  });
+
+  it("falls back to the other Bomba lift, then to a staircase landing, when Bomba lifts are blocked", () => {
+    expect(findRoute(level3, "uc-3-3", { needsAssistance: true, blockedStairIds: ["bomba-w"] })?.stairId).toBe("bomba-e");
+    const landing = findRoute(level3, "uc-3-3", { needsAssistance: true, blockedStairIds: ["bomba-w", "bomba-e"] })!;
+    expect(landing.exitKind).toBe("stairs");
+    expect(landing.steps.at(-1)!.text).toContain("wait on the landing of the south-west staircase");
   });
 
   it("gives turn-by-turn steps with distances", () => {
@@ -82,9 +103,47 @@ describe("findEvacuationRoute (whole building)", () => {
     expect(stepFloors).toEqual(["uni-l3", "uni-l2", "uni-l1", "uni-m", "uni-g"]);
   });
 
-  it("stops at the landing for people who can't use stairs", () => {
+  it("takes people who can't use stairs to a Bomba lift, then from the ground floor to the field", () => {
     const assisted = findEvacuationRoute("uni-l3", "meeting-1", { needsAssistance: true })!;
+    expect([...new Set(assisted.path.map((p) => p.floorId))]).toEqual(["uni-l3", "uni-g"]);
+    const waitAt = assisted.steps.findIndex((s) => s.wait);
+    expect(assisted.steps[waitAt + 1].text).toContain("Leave the east Bomba lift with your helper");
+    expect(assisted.steps.at(-1)!.text).toContain("assembly point on the field");
+  });
+
+  it("stops at a staircase landing when no Bomba lift is usable", () => {
+    const assisted = findEvacuationRoute("uni-l3", "meeting-1", { needsAssistance: true, blockedStairIds: ["bomba-w", "bomba-e"] })!;
     expect(new Set(assisted.path.map((p) => p.floorId))).toEqual(new Set(["uni-l3"]));
+  });
+});
+
+describe("remainingPath (the arrow trail)", () => {
+  const route = findEvacuationRoute("uni-l3", "meeting-1")!;
+
+  it("is the whole route at the start", () => {
+    expect(remainingPath(route.path, route.path[0])).toEqual(route.path);
+  });
+
+  it("drops everything behind each checkpoint", () => {
+    let previous = route.path.length + 1;
+    for (const step of route.steps) {
+      const left = remainingPath(route.path, step.at!);
+      expect(left.length).toBeLessThanOrEqual(previous);
+      expect(left[0]).toMatchObject(step.at!);
+      previous = left.length;
+    }
+    expect(remainingPath(route.path, route.steps.at(-1)!.at!)).toHaveLength(1);
+  });
+
+  it("leaves no arrows on the floors already walked down", () => {
+    const onMezzanine = route.steps.find((s) => s.at?.floorId === "uni-m")!.at!;
+    expect(remainingPath(route.path, onMezzanine).map((p) => p.floorId)).not.toContain("uni-l3");
+  });
+
+  it("starts part-way along a leg when the person is between two corners", () => {
+    const [a, b] = route.path;
+    const midway = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, floorId: a.floorId };
+    expect(remainingPath(route.path, midway)).toEqual([midway, ...route.path.slice(1)]);
   });
 });
 

@@ -1,7 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { POST as helpRoute } from "@/app/api/help/route";
-import { POST as helpActionRoute } from "@/app/api/help/[id]/route";
-import { DEFAULT_USER } from "@/lib/default-user";
 import {
   acceptHelp,
   activateEmergency,
@@ -13,8 +10,10 @@ import {
   resolveHelp,
   setStairBlocked,
 } from "@/server/emergency";
+import { person } from "./helpers";
 
-const aisha = { personName: "Aisha", profile: "wheelchair" as const, roomId: "uc-3-3" };
+const aisha = person("Aisha", "wheelchair");
+const ROOM = "uc-3-3";
 
 describe("emergency flow (real Postgres)", () => {
   it("starts with no emergency and only ever has one active", async () => {
@@ -26,8 +25,8 @@ describe("emergency flow (real Postgres)", () => {
 
   it("takes a help request from pending to accepted to resolved", async () => {
     await activateEmergency("uni-l3");
-    const request = await requestHelp(aisha);
-    expect(request.waitStairId).toBe("stair-sw");
+    const request = await requestHelp(aisha, ROOM);
+    expect(request).toMatchObject({ personId: aisha.id, personName: "Aisha", profile: "wheelchair", waitStairId: "bomba-w" });
 
     expect(await acceptHelp(request.id, "Ben")).toBe(true);
     expect(await acceptHelp(request.id, "Chen")).toBe(false); // already taken
@@ -39,66 +38,75 @@ describe("emergency flow (real Postgres)", () => {
 
   it("does not create a second open request for the same person", async () => {
     await activateEmergency("uni-l3");
-    const first = await requestHelp(aisha);
-    const again = await requestHelp(aisha);
+    const first = await requestHelp(aisha, ROOM);
+    const again = await requestHelp(aisha, "uc-3-4");
     expect(again.id).toBe(first.id);
   });
 
-  it("sends people to another landing when a staircase is blocked", async () => {
+  it("sends people to the other Bomba lift when theirs is blocked", async () => {
     await activateEmergency("uni-l3");
-    await setStairBlocked("stair-sw", true);
-    expect((await requestHelp(aisha)).waitStairId).toBe("stair-se");
-    expect((await getLiveState()).emergency?.blockedStairIds).toEqual(["stair-sw"]);
+    await setStairBlocked("bomba-w", true);
+    expect((await requestHelp(aisha, ROOM)).waitStairId).toBe("bomba-e");
+    expect((await getLiveState()).emergency?.blockedStairIds).toEqual(["bomba-w"]);
   });
 
-  it("counts each person once at the assembly point", async () => {
+  it("counts each person once at the assembly point, even two people with the same name", async () => {
     await activateEmergency("uni-l3");
-    await checkIn("Aisha");
-    await checkIn("Aisha");
-    expect((await getLiveState()).safeNames).toEqual(["Aisha"]);
+    await checkIn(aisha);
+    await checkIn(aisha);
+    await checkIn({ ...aisha, id: "test-another-aisha" });
+    const state = await getLiveState();
+    expect(state.safeNames).toEqual(["Aisha", "Aisha"]);
+    expect(state.safeIds).toEqual([aisha.id, "test-another-aisha"]);
   });
 
   it("clears the live view when the emergency ends", async () => {
     await activateEmergency("uni-l3");
-    await requestHelp(aisha);
+    await requestHelp(aisha, ROOM);
     await endEmergency();
     expect(await getLiveState()).toMatchObject({ emergency: null, requests: [] });
   });
 });
 
-describe("/api/help route handler", () => {
-  const post = (body: unknown) => helpRoute(new Request("http://test/api/help", { method: "POST", body: JSON.stringify(body) }));
-
-  it("rejects a request when there is no emergency", async () => {
-    expect((await post(aisha)).status).toBe(409);
-  });
-
-  it("rejects invalid input", async () => {
+describe("who sees what", () => {
+  it("shows every request and check-in to the shared administrator", async () => {
+    const other = person("Farid");
     await activateEmergency("uni-l3");
-    expect((await post({ ...aisha, personName: " " })).status).toBe(400);
-    expect((await post({ ...aisha, profile: "vip" })).status).toBe(400);
+    await requestHelp(aisha, ROOM);
+    await requestHelp(other, "uc-3-4");
+    await checkIn(other);
+
+    const asAisha = await getLiveState();
+    expect(asAisha.requests.map((r) => r.personName)).toEqual(["Aisha", "Farid"]);
+    expect(asAisha.safeIds).toEqual([other.id]);
+
+    expect((await getLiveState()).safeIds).toEqual([other.id]);
+    expect((await getLiveState()).requests).toHaveLength(2);
+    expect((await getLiveState()).safeNames).toEqual(["Farid"]);
   });
 });
 
-describe("/api/help/[id] shared administrator", () => {
-  it("accepts and resolves without a session and ignores a supplied responder identity", async () => {
+describe("location is not kept", () => {
+  it("holds the room while the rescue is open and forgets it once the person is evacuated", async () => {
     await activateEmergency("uni-l3");
-    const help = await requestHelp(aisha);
-    const post = (body: unknown) => helpActionRoute(
-      new Request(`http://test/api/help/${help.id}`, { method: "POST", body: JSON.stringify(body) }),
-      { params: Promise.resolve({ id: help.id }) },
-    );
+    const request = await requestHelp(aisha, ROOM);
+    await acceptHelp(request.id, "Ben");
+    expect((await getLiveState()).requests[0]).toMatchObject({ roomId: ROOM, waitStairId: "bomba-w" });
 
-    const accepted = await post({ action: "accept", responderName: "Another user" });
-    expect(accepted.status).toBe(200);
-    expect(await accepted.json()).toEqual({ ok: true });
-    expect((await getLiveState()).requests[0]).toMatchObject({
-      status: "accepted", responderName: DEFAULT_USER.name,
-    });
+    await resolveHelp(request.id);
+    expect((await getLiveState()).requests[0]).toMatchObject({ status: "resolved", roomId: null, waitStairId: null });
+  });
 
-    const resolved = await post({ action: "resolve" });
-    expect(await resolved.json()).toEqual({ ok: true });
-    expect((await getLiveState()).requests[0].status).toBe("resolved");
+  it("forgets every room when the emergency ends, including requests nobody answered", async () => {
+    const first = await activateEmergency("uni-l3");
+    await requestHelp(aisha, ROOM);
+    await endEmergency();
+
+    const { getDb } = await import("@/db/data-source");
+    const { HelpRequest } = await import("@/db/entities");
+    const rows = await (await getDb()).getRepository(HelpRequest).find({ where: { emergencyId: first.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ personName: "Aisha", roomId: null, waitStairId: null });
   });
 });
 

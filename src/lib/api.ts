@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { NoActiveEmergencyError } from "@/server/emergency";
+import { UnknownVenueError } from "@/server/venues";
 
 /** Shared error shaping for the JSON route handlers: expected failures become 4xx, the rest throw. */
 export async function handle(run: () => Promise<unknown>) {
@@ -15,6 +16,7 @@ export async function handle(run: () => Promise<unknown>) {
     if (err instanceof NoActiveEmergencyError) {
       return NextResponse.json({ error: err.message }, { status: 409 });
     }
+    if (err instanceof UnknownVenueError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     throw err;
   }

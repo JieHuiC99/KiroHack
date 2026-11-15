@@ -1,9 +1,7 @@
 import { handle } from "@/lib/api";
-import { checkInInput } from "@/lib/validation/emergency";
+import { DEFAULT_USER } from "@/lib/default-user";
 import { checkIn } from "@/server/emergency";
 
-export function POST(request: Request) {
-  return handle(async () => {
-    await checkIn(checkInInput.parse(await request.json()).personName);
-  });
+export function POST() {
+  return handle(async () => { await checkIn(DEFAULT_USER); });
 }

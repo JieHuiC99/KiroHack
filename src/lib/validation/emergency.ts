@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 // Shared by client forms and server code — keep it free of server-only imports.
-const name = z.string().trim().min(1, "Name is required").max(60);
 
 export const profiles = ["blind", "wheelchair", "other"] as const;
 export type Profile = (typeof profiles)[number];
@@ -9,21 +8,15 @@ export type Profile = (typeof profiles)[number];
 export const activateInput = z.object({ floorId: z.string().min(1) });
 export const blockStairInput = z.object({ stairId: z.string().min(1), blocked: z.boolean() });
 
-export const helpInput = z.object({
-  personName: name,
-  profile: z.enum(profiles),
-  roomId: z.string().min(1),
-});
-export type HelpInput = z.infer<typeof helpInput>;
+/** Location and accessibility preferences; the identity always comes from the shared default user. */
+export const helpInput = z.object({ roomId: z.string().min(1).max(60), profile: z.enum(profiles).default("other") });
 
-export const helpActionInput = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("accept") }),
-  z.object({ action: z.literal("resolve") }),
-]);
+export const helpActionInput = z.object({ action: z.enum(["accept", "resolve"]) });
 
-export const checkInInput = z.object({ personName: name });
-
-/** What every screen polls from GET /api/state. Dates are ISO strings once they cross the wire. */
+/**
+ * What every screen polls from GET /api/state. Dates are ISO strings once they cross the wire.
+ * The shared Emergency administrator receives every active help request and check-in.
+ */
 export type LiveState = {
   serverTime: string;
   escalationSeconds: number;
@@ -36,9 +29,11 @@ export type LiveState = {
   };
   requests: {
     id: string;
+    personId: string;
     personName: string;
     profile: Profile;
-    roomId: string;
+    /** Null once the person is evacuated: their location is not kept. */
+    roomId: string | null;
     waitStairId: string | null;
     status: "pending" | "accepted" | "resolved";
     responderName: string | null;
@@ -47,4 +42,6 @@ export type LiveState = {
     escalationLevel: 0 | 1 | 2;
   }[];
   safeNames: string[];
+  /** User ids of everyone in `safeNames`, in the same order. */
+  safeIds: string[];
 };

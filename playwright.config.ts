@@ -17,7 +17,7 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  // All screens use the shared Emergency administrator role without sign-in.
+  // Every screen uses the shared Emergency administrator; no account setup is needed.
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: process.env.PW_CHANNEL } }],
   webServer: {
     // Always the production build: it is what judges see, and Next 16 refuses a second

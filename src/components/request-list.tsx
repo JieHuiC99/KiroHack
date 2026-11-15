@@ -25,7 +25,7 @@ export function statusLabel(request: HelpRequest) {
 }
 
 export function toPins(requests: HelpRequest[]): MapPin[] {
-  return requests.map((r) => ({
+  return requests.flatMap((r) => (r.roomId ? [{ ...r, roomId: r.roomId }] : [])).map((r) => ({
     id: r.id,
     roomId: r.roomId,
     label: r.personName,
@@ -34,9 +34,9 @@ export function toPins(requests: HelpRequest[]): MapPin[] {
 }
 
 const STATUS_STYLE: Record<HelpRequest["status"], string> = {
-  pending: "border-red-700 bg-red-50",
-  accepted: "border-amber-600 bg-amber-50",
-  resolved: "border-green-700 bg-green-50",
+  pending: "border-[#f1a9a3] bg-[#fdeceb]",
+  accepted: "border-[#f5c451] bg-[#fff4d6]",
+  resolved: "border-[#9ccfbd] bg-[#eef7f4]",
 };
 
 /** Help requests as text cards. Status is always written out, never shown by colour alone. */
@@ -53,12 +53,16 @@ export function RequestList({
   return (
     <ul className="flex flex-col gap-3" data-testid="request-list">
       {state.requests.map((request) => (
-        <li key={request.id} className={`rounded-xl border-2 p-4 ${STATUS_STYLE[request.status]}`}>
+        <li key={request.id} className={`rounded-2xl border-2 p-4 text-[#17323a] ${STATUS_STYLE[request.status]}`}>
           <p className="text-xl font-bold">{request.personName}</p>
           <p>{PROFILE_LABEL[request.profile]}</p>
           <p>
-            From {roomName(floor, request.roomId)}
-            {request.waitStairId ? ` · waiting at ${roomName(floor, request.waitStairId)} landing` : " · no usable staircase, staying in room"}
+            {request.roomId ? `From ${roomName(floor, request.roomId)}` : "Location no longer kept"}
+            {!request.roomId
+              ? ""
+              : request.waitStairId
+              ? ` · waiting at ${roomName(floor, request.waitStairId)}${request.waitStairId.startsWith("stair-") ? " landing" : ""}`
+              : " · no usable exit, staying in room"}
           </p>
           <p className="font-semibold">
             {statusLabel(request)}

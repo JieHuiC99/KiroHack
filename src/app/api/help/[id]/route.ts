@@ -7,10 +7,11 @@ import { acceptHelp, resolveHelp } from "@/server/emergency";
 
 export function POST(request: Request, context: RouteContext<"/api/help/[id]">) {
   return handle(async () => {
+    const responder = DEFAULT_USER;
     const { id } = await context.params;
     if (!z.uuid().safeParse(id).success) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const body = helpActionInput.parse(await request.json());
-    const changed = body.action === "accept" ? await acceptHelp(id, DEFAULT_USER.name) : await resolveHelp(id);
+    const { action } = helpActionInput.parse(await request.json());
+    const changed = action === "accept" ? await acceptHelp(id, responder.name) : await resolveHelp(id);
     return { ok: changed };
   });
 }

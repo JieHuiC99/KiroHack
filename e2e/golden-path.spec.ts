@@ -1,41 +1,32 @@
 import { expect, test } from "@playwright/test";
 
-// Mirrors the 90-second demo: alarm → wheelchair user asks for help → responder accepts →
-// evacuated. Three browser contexts stand in for the dashboard laptop and two phones.
-test("wheelchair user gets help during a fire alarm", async ({ browser, request }) => {
-  await request.post("/api/emergency", { data: { action: "end" } }); // clean slate
-
+// Three screens share one default administrator, with no account setup.
+test("administrator coordinates an evacuation without signing in", async ({ browser, request }) => {
+  await request.post("/api/emergency", { data: { action: "end" } });
   const dashboard = await (await browser.newContext()).newPage();
   const student = await (await browser.newContext()).newPage();
   const responder = await (await browser.newContext()).newPage();
 
-  await student.goto("/me");
-  await student.getByLabel("Your name").fill("Aisha");
-  await student.getByLabel(/wheelchair/).check();
-  await student.getByLabel(/Room you are usually in/).selectOption({ label: "UC-3-3" });
-  await student.getByRole("button", { name: "Save" }).click();
-  await expect(student.getByText("No emergency right now.")).toBeVisible();
-
-  await responder.goto("/responder");
-  await expect(responder.getByRole("heading", { name: "Help requests — Emergency administrator" })).toBeVisible();
-
   await dashboard.goto("/");
   await expect(dashboard).toHaveURL(/\/dashboard$/);
   await expect(dashboard.getByText("Emergency administrator", { exact: true })).toBeVisible();
+  await student.goto("/me");
+  await student.getByLabel(/wheelchair/).check();
+  await student.getByLabel(/Room you are in/).selectOption({ label: "UC-3-3" });
+  await student.getByRole("button", { name: "Continue" }).click();
+  await expect(student.getByText("No emergency right now.")).toBeVisible();
+  await responder.goto("/responder");
+
   await dashboard.getByRole("button", { name: /Simulate fire alarm/ }).click();
   await expect(dashboard.getByText(/FIRE EMERGENCY ACTIVE/)).toBeVisible();
-
-  await expect(student.getByRole("heading", { name: /FIRE EMERGENCY/ })).toBeVisible();
+  await expect(student.getByRole("heading", { name: /Fire emergency/i })).toBeVisible();
   await student.getByRole("button", { name: "I need help" }).click();
   await expect(student.getByText(/Help requested/).first()).toBeVisible();
-
   await responder.getByRole("button", { name: /Accept/ }).click();
   await expect(student.getByText(/Emergency administrator has accepted/)).toBeVisible();
   await expect(dashboard.getByText("Accepted by Emergency administrator")).toBeVisible();
-
-  await responder.getByRole("button", { name: /Mark Aisha as evacuated/ }).click();
+  await responder.getByRole("button", { name: /Mark Emergency administrator/ }).click();
   await expect(dashboard.getByText("Resolved — evacuated")).toBeVisible();
-
   await dashboard.getByRole("button", { name: /End emergency/ }).click();
   await expect(student.getByText("No emergency right now.")).toBeVisible();
 });

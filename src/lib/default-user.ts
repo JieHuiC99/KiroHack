@@ -1,5 +1,9 @@
-// Shared demo identity; this is not an authenticated account or an access-control check.
+import type { AppUser } from "./roles";
+
+// Shared prototype identity. No account, session or role selection is required.
 export const DEFAULT_USER = {
+  id: "emergency-administrator",
   name: "Emergency administrator",
   role: "administrator",
-} as const;
+  profile: "other",
+} as const satisfies AppUser;

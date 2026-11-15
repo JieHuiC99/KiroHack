@@ -11,6 +11,7 @@ const schema = z
     DIRECT_URL: z.string().url().optional(),
     DB_SYNC: bool,
     DATABASE_SSL: bool,
+    NEXT_PUBLIC_CCTV_URL_TEMPLATE: z.string().includes("{venue}", "NEXT_PUBLIC_CCTV_URL_TEMPLATE must contain {venue}").optional(),
     VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
   })
   .refine((env) => !(env.VERCEL_ENV === "production" && env.DB_SYNC === "true"), {
