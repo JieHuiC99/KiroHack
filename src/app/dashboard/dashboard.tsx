@@ -1,10 +1,12 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { FloorMap3D } from "@/components/floor-map-3d";
 import { RequestList, toPins } from "@/components/request-list";
 import { post, secondsSince, useLiveState } from "@/lib/client/live";
 import { getFloor, level3 } from "@/lib/floor/building";
 import { bombaLifts, staircases } from "@/lib/floor/routing";
+import type { AppUser } from "@/lib/roles";
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -15,7 +17,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-export function Dashboard() {
+export function Dashboard({ user }: { user: AppUser }) {
   const { state, offline } = useLiveState();
   const [error, setError] = useState("");
 
@@ -35,6 +37,9 @@ export function Dashboard() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">SafeWay control dashboard</h1>
+          <p className="text-base">
+            {user.name} · disaster recovery team · <Link href="/monitor" className="underline">Venue monitor</Link> · <Link href="/" className="underline">Account</Link>
+          </p>
           <p role="status">
             {offline
               ? "No connection. Reconnecting…"

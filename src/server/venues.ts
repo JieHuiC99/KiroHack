@@ -8,8 +8,8 @@ import { activeEmergency, requireActiveEmergency } from "./emergency";
 
 // Classroom alerts: which venues are in use, which have answered the alarm, and the siren repeats.
 //
-// ⚠ Hackathon decision, same as src/server/emergency.ts: no sign-in on these flows. Before real use,
-// only the emergency team may repeat a siren or mark a room clear (requireUser() + role check).
+// Who may call what is decided in the route handlers: a classroom computer (device key) may read its
+// room and acknowledge; only the emergency team may read the board, repeat a siren or mark a room clear.
 
 export class UnknownVenueError extends Error {
   constructor(venueId: string) {

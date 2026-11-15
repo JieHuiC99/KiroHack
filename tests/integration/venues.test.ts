@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { GET as venueRoute, POST as venueActionRoute } from "@/app/api/venues/[id]/route";
 import { venues } from "@/lib/venues";
 import { activateEmergency, endEmergency } from "@/server/emergency";
 import { applyVenueAction, getVenueBoard, getVenueState } from "@/server/venues";
 
 const ROOM = "uc-3-3";
 const alertOf = async (venueId = ROOM) => (await getVenueState(venueId)).venue.alert;
-const context = (id: string) => ({ params: Promise.resolve({ id }) });
-const action = (body: unknown) => new Request("http://test/api/venues/x", { method: "POST", body: JSON.stringify(body) });
 
+// Who may call these is covered in access.test.ts.
 describe("classroom alerts (real Postgres)", () => {
   it("lists every venue with no alert while there is no alarm", async () => {
     const board = await getVenueBoard();
@@ -56,15 +54,5 @@ describe("classroom alerts (real Postgres)", () => {
     expect(await alertOf()).toBeNull();
     await activateEmergency("uni-l3");
     expect(await alertOf()).toMatchObject({ sirenRound: 1, acknowledged: false });
-  });
-
-  it("answers the API with 404 for an unknown room, 409 with no alarm and 400 for a bad action", async () => {
-    expect((await venueRoute(new Request("http://test"), context("nowhere"))).status).toBe(404);
-    expect((await venueActionRoute(action({ action: "acknowledge" }), context(ROOM))).status).toBe(409);
-    await activateEmergency("uni-l3");
-    expect((await venueActionRoute(action({ action: "explode" }), context(ROOM))).status).toBe(400);
-    expect((await venueActionRoute(action({ action: "acknowledge" }), context(ROOM))).status).toBe(200);
-    const body = await (await venueRoute(new Request("http://test"), context(ROOM))).json();
-    expect(body.venue.alert.acknowledged).toBe(true);
   });
 });

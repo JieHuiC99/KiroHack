@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { AuthError } from "@/lib/session";
 import { NoActiveEmergencyError } from "@/server/emergency";
 import { UnknownVenueError } from "@/server/venues";
 
@@ -16,6 +17,7 @@ export async function handle(run: () => Promise<unknown>) {
     if (err instanceof NoActiveEmergencyError) {
       return NextResponse.json({ error: err.message }, { status: 409 });
     }
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof UnknownVenueError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     throw err;

@@ -10,7 +10,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Only guard app areas that need a user. Keep "/", "/sign-in", "/api/auth" public.
-// Hackathon decision: /me, /responder and /dashboard are open for the demo (README "Decisions").
-// To lock the dashboard down, add "/dashboard/:path*" here and requireUser() in src/server/emergency.ts.
-export const config = { matcher: ["/admin/:path*"] };
+// Only guard app areas that need a user. Keep "/", "/sign-in", "/api/auth" and "/classroom" public
+// (classroom computers have nobody signed in; they use the device key instead).
+// This is only the quick redirect. Who may open what is checked in each page (requirePageUser) and each API route.
+export const config = { matcher: ["/me/:path*", "/guide/:path*", "/responder/:path*", "/dashboard/:path*", "/monitor/:path*"] };

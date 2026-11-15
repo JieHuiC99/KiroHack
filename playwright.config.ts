@@ -17,7 +17,7 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  // No sign-in on the demo flows, so no auth setup project (see README "Decisions").
+  // Each test signs its own accounts up through the sign-in page (e2e/golden-path.spec.ts), so no auth setup project.
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: process.env.PW_CHANNEL } }],
   webServer: {
     // Always the production build: it is what judges see, and Next 16 refuses a second

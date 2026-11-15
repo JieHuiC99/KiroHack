@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { post, secondsSince, usePolled } from "@/lib/client/live";
 import type { VenueAction, VenueBoard, VenueStatus } from "@/lib/validation/venues";
+import type { AppUser } from "@/lib/roles";
 import { venueGroups } from "@/lib/venues";
 
 const CCTV_URL_TEMPLATE = process.env.NEXT_PUBLIC_CCTV_URL_TEMPLATE;
@@ -111,7 +112,7 @@ function VenueCard({ venue, act }: { venue: VenueStatus; act: (venueId: string, 
 }
 
 /** For the disaster recovery team: which rooms have classes, which have answered the alarm, and their cameras. */
-export function VenueMonitor() {
+export function VenueMonitor({ user }: { user: AppUser }) {
   const { state, offline } = usePolled<VenueBoard>("/api/venues");
   const [filter, setFilter] = useState<Filter>("all");
   const [error, setError] = useState("");
@@ -131,6 +132,9 @@ export function VenueMonitor() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">SafeWay venue monitor</h1>
+          <p className="text-base">
+            {user.name} · disaster recovery team · <Link href="/" className="underline">Account</Link>
+          </p>
           <p role="status">
             {offline
               ? "No connection. Reconnecting…"

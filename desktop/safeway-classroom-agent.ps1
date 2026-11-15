@@ -13,11 +13,13 @@
   Nothing is installed: it only needs Windows PowerShell and Edge (or Chrome), which classroom PCs have.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File safeway-classroom-agent.ps1 -Server https://safeway.example.com -Venue uc-3-3
+  powershell -ExecutionPolicy Bypass -File safeway-classroom-agent.ps1 -Server https://safeway.example.com -Venue uc-3-3 -DeviceKey <key>
 #>
 param(
   [Parameter(Mandatory = $true)][string]$Server,
   [Parameter(Mandatory = $true)][string]$Venue,
+  # The classroom device key (CLASSROOM_DEVICE_KEY on the server). Lets this PC read its room's alert and acknowledge it, nothing else.
+  [Parameter(Mandatory = $true)][string]$DeviceKey,
   [int]$PollSeconds = 3,
   # Keep the "acknowledged, leave now" message on screen this long before closing the window.
   [int]$CloseAfterSeconds = 8,
@@ -28,7 +30,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $Server = $Server.TrimEnd('/')
 $stateUrl = "$Server/api/venues/$Venue"
-$alertUrl = "$Server/classroom/$Venue"
+# The key rides in the part after #, which browsers never send to the server or write to its logs; the page stores it and removes it from the address.
+$alertUrl = "$Server/classroom/$Venue#key=$([uri]::EscapeDataString($DeviceKey))"
+$requestHeaders = @{ 'x-safeway-device-key' = $DeviceKey }
 # A profile of its own, so the autoplay flag applies even if the lecturer already has the browser open.
 $profileDir = Join-Path $env:LOCALAPPDATA 'SafeWay\alert-browser'
 
@@ -44,7 +48,7 @@ function Find-Browser {
 }
 
 function Show-Alert {
-  if ($DryRun) { Write-Host "[dry run] would open $alertUrl full-screen"; return $null }
+  if ($DryRun) { Write-Host "[dry run] would open $Server/classroom/$Venue full-screen"; return $null }
   $arguments = @(
     '--kiosk', $alertUrl,
     '--edge-kiosk-type=fullscreen',
@@ -72,7 +76,7 @@ $answeredAt = $null   # when we first saw the alert acknowledged while the windo
 Write-Host "SafeWay classroom agent watching $stateUrl every $PollSeconds s"
 while ($true) {
   try {
-    $state = Invoke-RestMethod -Uri $stateUrl -TimeoutSec 10
+    $state = Invoke-RestMethod -Uri $stateUrl -Headers $requestHeaders -TimeoutSec 10
     $alert = $state.venue.alert
     $needsAnswer = ($null -ne $state.emergency) -and ($null -ne $alert) -and (-not $alert.acknowledged)
 

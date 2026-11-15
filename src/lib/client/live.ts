@@ -4,21 +4,32 @@ import type { LiveState } from "@/lib/validation/emergency";
 
 const POLL_MS = 1500;
 
-/** Polls a JSON endpoint. `state` is `undefined` until the first answer arrives. */
-export function usePolled<T>(url: string) {
+/**
+ * Polls a JSON endpoint. `state` is `undefined` until the first answer arrives.
+ * `denied` is true when the server refuses (signed out, wrong role, wrong device key).
+ * Pass `key` to send the classroom device key; pass `null` as the url to wait.
+ */
+export function usePolled<T>(url: string | null, key?: string) {
   const [state, setState] = useState<T>();
   const [offline, setOffline] = useState(false);
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
+    if (!url) return;
     let stopped = false;
     async function poll() {
       try {
-        const res = await fetch(url, { cache: "no-store" });
+        const res = await fetch(url!, { cache: "no-store", headers: key ? { [DEVICE_KEY_HEADER]: key } : undefined });
+        if (res.status === 401 || res.status === 403) {
+          if (!stopped) setDenied(true);
+          return;
+        }
         if (!res.ok) throw new Error(String(res.status));
         const next = (await res.json()) as T;
         if (!stopped) {
           setState(next);
           setOffline(false);
+          setDenied(false);
         }
       } catch {
         if (!stopped) setOffline(true);
@@ -30,19 +41,22 @@ export function usePolled<T>(url: string) {
       stopped = true;
       clearInterval(timer);
     };
-  }, [url]);
+  }, [url, key]);
 
-  return { state, offline };
+  return { state, offline, denied };
 }
 
 /** What the phone, responder and dashboard screens poll. */
 export const useLiveState = () => usePolled<LiveState>("/api/state");
 
-export async function post(path: string, body: unknown): Promise<{ error?: string }> {
+/** Must match DEVICE_KEY_HEADER in src/lib/session.ts (that file is server-only). */
+const DEVICE_KEY_HEADER = "x-safeway-device-key";
+
+export async function post(path: string, body: unknown, key?: string): Promise<{ error?: string }> {
   try {
     const res = await fetch(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(key ? { [DEVICE_KEY_HEADER]: key } : {}) },
       body: JSON.stringify(body),
     });
     const json = (await res.json().catch(() => ({}))) as { error?: string };

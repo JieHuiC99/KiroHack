@@ -25,7 +25,7 @@ export function statusLabel(request: HelpRequest) {
 }
 
 export function toPins(requests: HelpRequest[]): MapPin[] {
-  return requests.map((r) => ({
+  return requests.flatMap((r) => (r.roomId ? [{ ...r, roomId: r.roomId }] : [])).map((r) => ({
     id: r.id,
     roomId: r.roomId,
     label: r.personName,
@@ -57,8 +57,10 @@ export function RequestList({
           <p className="text-xl font-bold">{request.personName}</p>
           <p>{PROFILE_LABEL[request.profile]}</p>
           <p>
-            From {roomName(floor, request.roomId)}
-            {request.waitStairId
+            {request.roomId ? `From ${roomName(floor, request.roomId)}` : "Location no longer kept"}
+            {!request.roomId
+              ? ""
+              : request.waitStairId
               ? ` · waiting at ${roomName(floor, request.waitStairId)}${request.waitStairId.startsWith("stair-") ? " landing" : ""}`
               : " · no usable exit, staying in room"}
           </p>

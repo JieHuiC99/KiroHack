@@ -1,48 +1,45 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ArGuide } from "@/components/ar-guide";
 import { FloorMap3D } from "@/components/floor-map-3d";
 import { speak, vibrate, VIBRATION } from "@/lib/client/announce";
 import { post, useLiveState } from "@/lib/client/live";
-import { useStored } from "@/lib/client/stored";
 import { findEvacuationRoute, getFloor, ground, level3 } from "@/lib/floor/building";
-import { remainingPath, theStair } from "@/lib/floor/routing";
+import { mapBearing } from "@/lib/floor/bearing";
+import { pathLength, remainingPath, theStair } from "@/lib/floor/routing";
 import type { Turn } from "@/lib/floor/types";
-import type { LiveState } from "@/lib/validation/emergency";
-import { SetupForm, type Settings } from "./setup-form";
+import type { AppUser } from "@/lib/roles";
+import type { LiveState, Profile } from "@/lib/validation/emergency";
+import { LocationForm, type Place } from "./setup-form";
 
 type Emergency = NonNullable<LiveState["emergency"]>;
 type HelpRequest = LiveState["requests"][number];
 
-const SETTINGS_KEY = "safeway.settings";
+/** Who is holding the phone (from their account) and where they said they are (this visit only). */
+type Settings = { id: string; name: string; profile: Profile; roomId: string; voice: boolean };
 
-export function StudentApp() {
-  const { value: settings, save, ready } = useStored<Settings>(SETTINGS_KEY);
+export function StudentApp({ user }: { user: AppUser }) {
   const { state, offline } = useLiveState();
-  const [editing, setEditing] = useState(false);
+  // Asked on every visit and kept in memory only: never in the phone's storage, never in the account.
+  const [place, setPlace] = useState<Place | null>(null);
 
-  if (!ready) return null;
-  if (!settings || editing) {
-    return (
-      <SetupForm
-        floor={level3}
-        initial={settings}
-        onSave={(next) => {
-          save(next);
-          setEditing(false);
-        }}
-      />
-    );
-  }
+  // Earlier versions remembered the room on the phone. Forget it.
+  useEffect(() => window.localStorage.removeItem("safeway.settings"), []);
+
+  if (!place) return <LocationForm floor={level3} user={user} alarm={Boolean(state?.emergency)} onSave={setPlace} />;
+
+  const settings: Settings = { id: user.id, name: user.name, profile: user.profile, ...place };
   if (state?.emergency) {
     return <EmergencyScreen key={state.emergency.id} settings={settings} state={state} emergency={state.emergency} offline={offline} />;
   }
-  return <Standby settings={settings} offline={offline} loading={!state} onEdit={() => setEditing(true)} />;
+  return <Standby settings={settings} offline={offline} loading={!state} onMove={() => setPlace(null)} />;
 }
 
 /** The map is the main view for everyone who can see it; blind users get the audio-first layout. */
 const usesMap = (settings: Settings) => settings.profile !== "blind";
 
-function Standby({ settings, offline, loading, onEdit }: { settings: Settings; offline: boolean; loading: boolean; onEdit: () => void }) {
+function Standby({ settings, offline, loading, onMove }: { settings: Settings; offline: boolean; loading: boolean; onMove: () => void }) {
   const room = level3.rooms.find((r) => r.id === settings.roomId);
   const route = findEvacuationRoute(level3.id, settings.roomId, { needsAssistance: settings.profile === "wheelchair" });
   const goesOutside = route?.path.some((p) => p.floorId === ground.id) ?? false;
@@ -94,10 +91,13 @@ function Standby({ settings, offline, loading, onEdit }: { settings: Settings; o
         >
           Test voice and vibration
         </button>
-        <button type="button" className="min-h-16 rounded-xl border-2 border-black p-4 text-xl font-bold" onClick={onEdit}>
-          Change my details
+        <button type="button" className="min-h-16 rounded-xl border-2 border-black p-4 text-xl font-bold" onClick={onMove}>
+          I have moved: change my room
         </button>
       </div>
+      <Link href="/" className="self-start underline">
+        Account and sign out
+      </Link>
     </main>
   );
 }
@@ -132,8 +132,8 @@ const SMALL = "min-h-16 rounded-2xl p-3 text-xl font-extrabold";
 
 function EmergencyScreen({ settings, state, emergency, offline }: { settings: Settings; state: LiveState; emergency: Emergency; offline: boolean }) {
   const floor = getFloor(emergency.floorId) ?? level3;
-  const myRequest = state.requests.findLast((r) => r.personName === settings.name);
-  const isSafe = state.safeNames.includes(settings.name);
+  const myRequest = state.requests.findLast((r) => r.personId === settings.id);
+  const isSafe = state.safeIds.includes(settings.id);
   const needsAssistance = settings.profile === "wheelchair" || (myRequest !== undefined && myRequest.status !== "resolved");
   const route = findEvacuationRoute(floor.id, settings.roomId, { blockedStairIds: emergency.blockedStairIds, needsAssistance });
   const showMap = usesMap(settings);
@@ -143,6 +143,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const [progress, setProgress] = useState({ routeKey, index: -1 });
   const index = progress.routeKey === routeKey ? progress.index : -1;
   const [error, setError] = useState("");
+  const [view, setView] = useState<"map" | "camera">("map");
 
   const rerouted = emergency.blockedStairIds.length > 0;
   const start = showMap ? "Follow the arrows on the map" : "Press Next step to begin";
@@ -163,6 +164,12 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   // Arrows only for the way still to go: the trail behind the current checkpoint is dropped.
   const remaining = route && position ? remainingPath(route.path, position) : [];
   const waitingHere = step?.wait === true;
+  // For the camera view: the leg being walked now, if there is one on this floor.
+  const legFloor = getFloor(position?.floorId ?? floor.id) ?? floor;
+  const leg = remaining.filter((p) => p.floorId === legFloor.id).slice(0, 2);
+  const legBearing = leg.length === 2 ? mapBearing(leg[0], leg[1]) : null;
+  const legMetres = leg.length === 2 ? Math.max(1, Math.round(pathLength(leg) * legFloor.metresPerUnit)) : null;
+  const goingDown = remaining.some((p) => p.floorId !== legFloor.id);
   // The map shows one floor at a time: the floor the current step is on.
   const shownFloor = getFloor(position?.floorId ?? floor.id) ?? floor;
   const nextFloorId = route && index + 1 < route.steps.length ? route.steps[index + 1].at?.floorId : undefined;
@@ -191,7 +198,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   async function next() {
     if (!route) return;
     if (atLastStep) {
-      const result = await post("/api/checkin", { personName: settings.name });
+      const result = await post("/api/checkin", {});
       setError(result.error ?? "");
       return;
     }
@@ -202,7 +209,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
 
   async function askForHelp() {
     if (helpIsOpen) return repeat();
-    const result = await post("/api/help", { personName: settings.name, profile: settings.profile, roomId: settings.roomId });
+    const result = await post("/api/help", { roomId: settings.roomId });
     setError(result.error ?? "");
   }
 
@@ -252,7 +259,16 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
         FIRE EMERGENCY — {floor.label.toUpperCase()}
       </h1>
 
-      {showMap && route ? (
+      {showMap && route && view === "camera" ? (
+        <ArGuide
+          bearing={legBearing}
+          metres={legMetres}
+          towards={legFloor.id === ground.id ? "the assembly point" : route.stairName}
+          goingDown={goingDown}
+          fallbackTurn={step?.arrow}
+          className="h-[42dvh] min-h-64 w-full md:h-full"
+        />
+      ) : showMap && route ? (
         <FloorMap3D
           floor={floor}
           route={remaining}
@@ -268,6 +284,22 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
       ) : null}
 
       <div className={`flex flex-1 flex-col gap-3 p-3 md:overflow-y-auto ${showMap && route ? "" : "md:col-span-2 md:mx-auto md:w-full md:max-w-xl"}`}>
+        {showMap && route ? (
+          <div role="group" aria-label="View" className="grid grid-cols-2 gap-2">
+            {(["map", "camera"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={view === option}
+                onClick={() => setView(option)}
+                className={`min-h-11 rounded-xl border-2 border-white px-3 text-lg font-extrabold ${view === option ? "bg-white text-black" : "text-white"}`}
+              >
+                {option === "map" ? "3D map" : "Camera arrows"}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <section aria-live="assertive" aria-atomic="true" className="flex items-center gap-3 rounded-2xl border-2 border-white p-3 sm:p-4">
           {step?.arrow && !isSafe ? <TurnArrow turn={step.arrow} /> : null}
           <div>

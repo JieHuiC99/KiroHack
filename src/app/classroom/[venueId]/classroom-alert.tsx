@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { speak } from "@/lib/client/announce";
 import { post, usePolled } from "@/lib/client/live";
 import { startSiren, stopSiren } from "@/lib/client/siren";
+import { useStored } from "@/lib/client/stored";
 import type { VenueState } from "@/lib/validation/venues";
 import type { Venue } from "@/lib/venues";
 
@@ -15,7 +16,16 @@ const SPEAK_EVERY_MS = 9000;
  * still sees people on CCTV and repeats the siren, the prompt comes back.
  */
 export function ClassroomAlert({ venue }: { venue: Venue }) {
-  const { state, offline } = usePolled<VenueState>(`/api/venues/${venue.id}`);
+  // This computer's proof that it is a classroom PC. It arrives once in the address (#key=…, put there by
+  // the startup agent or typed below) and is then kept on this computer.
+  const { value: deviceKey, save: saveKey, ready } = useStored<string>("safeway.device-key");
+  useEffect(() => {
+    const fromAddress = new URLSearchParams(window.location.hash.slice(1)).get("key");
+    if (!fromAddress) return;
+    saveKey(fromAddress);
+    window.history.replaceState(null, "", window.location.pathname); // don't leave the key in the address bar
+  }, [saveKey]);
+  const { state, offline, denied } = usePolled<VenueState>(deviceKey ? `/api/venues/${venue.id}` : null, deviceKey ?? undefined);
   const [audible, setAudible] = useState(false);
   const [error, setError] = useState("");
 
@@ -53,8 +63,37 @@ export function ClassroomAlert({ venue }: { venue: Venue }) {
   }, [prompting, message]);
 
   async function acknowledge() {
-    const result = await post(`/api/venues/${venue.id}`, { action: "acknowledge" });
+    const result = await post(`/api/venues/${venue.id}`, { action: "acknowledge" }, deviceKey ?? undefined);
     setError(result.error ?? "");
+  }
+
+  if (!ready) return null;
+  if (!deviceKey || denied) {
+    return (
+      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-5 p-4 text-lg sm:p-6 sm:text-xl">
+        <h1 className="text-3xl font-bold">{venue.name}: register this computer</h1>
+        <p role="status" className="rounded-xl border-2 border-black p-4 font-semibold">
+          {denied ? "That device key was not accepted." : "This computer is not registered for classroom alerts yet."} Ask the disaster recovery team for the classroom
+          device key.
+        </p>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const key = String(new FormData(event.currentTarget).get("key") ?? "").trim();
+            if (key) saveKey(key);
+          }}
+        >
+          <label className="flex flex-col gap-2 font-semibold">
+            Classroom device key
+            <input name="key" type="password" required autoComplete="off" className="rounded-lg border-2 border-black p-4 font-normal" />
+          </label>
+          <button type="submit" className="min-h-16 rounded-xl bg-black p-4 text-2xl font-bold text-white">
+            Register
+          </button>
+        </form>
+      </main>
+    );
   }
 
   if (prompting) {

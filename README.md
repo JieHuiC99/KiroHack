@@ -23,7 +23,7 @@ with the field as the assembly point.
 ## Run it
 
 ```bash
-cp .env.example .env          # then set BETTER_AUTH_SECRET (npx auth@latest secret)
+cp .env.example .env          # then set BETTER_AUTH_SECRET (npx auth@latest secret), the two email lists and CLASSROOM_DEVICE_KEY
 npm install
 npm run setup                 # Docker Postgres + tables
 npm run dev                   # http://localhost:3000
@@ -41,6 +41,62 @@ npm test                      # unit: routing + floor data
 npm run test:integration      # services against real Postgres
 npm run test:e2e              # the demo, end to end (needs: npx playwright install chromium)
 ```
+
+## Sign-in and roles
+
+Everyone signs in (`/sign-in`). The form asks which describes them in an emergency: **normal** (sees the
+screen, uses stairs), **blind or low vision**, or **disabled** (wheelchair, cannot use stairs). That answer is
+their own to give, it only changes what their evacuation screen does, and they can change it at the next sign-in.
+
+What someone is *allowed* to do is a separate thing, and it is never chosen by the person. It is worked out on the
+server on every request from two lists of email addresses in the environment (`src/lib/roles.ts`):
+
+| Role | Who | Can open | Can do |
+|---|---|---|---|
+| Student | everyone not listed | `/me` | See their own route, ask for help, check in safe. Sees only their own request |
+| Responder | `RESPONDER_EMAILS` | `/me`, `/responder` | Also see all help requests, accept and resolve them |
+| Disaster recovery team | `EMERGENCY_TEAM_EMAILS` | everything | Also trigger and end the alarm, block exits, venue monitor, repeat sirens |
+| Classroom computer | `CLASSROOM_DEVICE_KEY` (no sign-in) | `/classroom/<venue>` | Read its own room's alert and acknowledge it, nothing else |
+
+Pages redirect people who may not open them; every API route checks again (`requireApiUser` in
+`src/lib/session.ts`), and names, profiles and roles are always taken from the session, never from the request.
+
+**Location is asked, not stored.** `/me` asks "Where are you now?" on every visit and keeps the answer in memory
+for that visit only: not in the account, not in the phone's storage. The one place a room reaches the database
+is a help request, because a responder has to find the person; it is wiped as soon as the request is resolved or
+the emergency ends.
+
+## Camera arrows
+
+On `/me` during an alarm, **Camera arrows** swaps the 3D map for the phone camera with an arrow lying on the
+floor ahead, turning as the phone turns (green when you face the right way) and the distance to the next turn.
+
+What it is: the phone's compass plus the route from the map. What it is not: it does not recognise the corridor
+in the picture and does not know where you are standing, so **Next step** is still pressed at each checkpoint.
+Real visual positioning indoors needs the building scanned in advance (or markers on the walls) and is not
+something a web page can do reliably in a fire. The picture never leaves the phone.
+
+- Needs HTTPS (or `localhost`): browsers refuse the camera and compass on plain `http://<laptop-ip>`.
+- The map's "up" is assumed to be north, which is unverified. If the arrow is off, face along the route and press
+  **Arrow wrong?**: the correction is remembered on that phone.
+- No compass (laptops) or permission refused: the arrow shows the turn for the current step instead.
+
+### Landmark route with QR codes: Lecture Theatre 5 to the Green zone
+
+`/guide/lt5-green-zone` is a second kind of camera route, for places the floor map can't route yet. It is a
+chain of eight landmarks (LT5 sign → Gallery sign → ocean poster → staircase 1 → M → G → exit door → Green
+zone), each with a photo, a spoken instruction and a QR code on the wall.
+
+- Point the camera at a landmark's QR code and the route jumps to that checkpoint, so the app knows where you
+  are without typing. Scanning also means you are facing the landmark, so that compass reading fixes which way
+  "turn right from here" really is, and the arrow then stays put as the phone turns.
+- The codes are plain links (`/guide/lt5-green-zone?at=<checkpoint>`), so the phone's own camera app opens
+  the guide at the right checkpoint too. In-page scanning needs Chrome on Android; on iPhone use the camera
+  app or the **I've reached** button.
+- The disaster recovery team prints the codes from `/guide/lt5-green-zone/print`. Print from the address
+  people will really use: the codes point back to wherever the page was opened.
+- The route is in `src/lib/landmark-routes.ts`. It was written from eight photos and the walker's answers, so
+  walk it once with the app before relying on it.
 
 ## Who goes where
 
@@ -64,7 +120,7 @@ Windows startup script instead:
 
 ```powershell
 # once per classroom PC; no admin rights, nothing to install
-powershell -ExecutionPolicy Bypass -File desktop\install-startup.ps1 -Server https://<your-safeway-address> -Venue uc-3-3
+powershell -ExecutionPolicy Bypass -File desktop\install-startup.ps1 -Server https://<your-safeway-address> -Venue uc-3-3 -DeviceKey <CLASSROOM_DEVICE_KEY>
 ```
 
 It adds a shortcut to the user's Startup folder. From then on `safeway-classroom-agent.ps1` runs hidden after
@@ -72,8 +128,17 @@ every login, asks `GET /api/venues/<venue>` every 3 seconds, and when the room h
 `/classroom/<venue>` full-screen in Edge (kiosk mode, sound allowed). When the button is pressed it closes the
 window; if the emergency team presses **Repeat siren** it opens again. `-Remove` uninstalls it.
 
-Without the script, `/classroom/<venue>` still works in any browser tab that is left open, but the siren needs
-one click on the page first ("Test the siren" does it).
+Without the script, `/classroom/<venue>` still works in any browser tab that is left open: it asks once for the
+classroom device key, and the siren needs one click on the page first ("Test the siren" does it).
+
+### Sounding the siren, step by step
+
+1. Sign in with an address listed in `EMERGENCY_TEAM_EMAILS` and open `/dashboard`.
+2. Press **Simulate fire alarm**. Every registered classroom screen goes full-screen red with the siren.
+3. In the classroom, someone presses **I'll evacuate right now…**: the siren stops there.
+4. Open `/monitor`, find the room, **View CCTV**. Still people inside? Press **Still occupied: repeat siren**
+   and the alert and siren come back in that room. Empty? Press **Room is empty**.
+5. **End emergency (all clear)** on the dashboard stops everything.
 
 CCTV: set `NEXT_PUBLIC_CCTV_URL_TEMPLATE` (see `.env.example`) to an MJPEG or snapshot URL with `{venue}` in it
 and the monitor shows the live picture. Without it the tile says no camera is connected. The class timetable in
@@ -81,7 +146,7 @@ and the monitor shows the live picture. Without it the tile says no camera is co
 
 ## Demo script (about 90 seconds)
 
-1. Phone A: `/me` → set up as **wheelchair**, room UC-3-4. Phone B: `/me` → default profile (sees the map), room UC-3-3. Phone C: `/responder`.
+1. Sign up three accounts: Phone A as **disabled**, Phone B as **normal**, Phone C with a `RESPONDER_EMAILS` address; the laptop with an `EMERGENCY_TEAM_EMAILS` address. Phone A picks room UC-3-4, Phone B room UC-3-3.
 2. Laptop: `/dashboard` → **Simulate fire alarm**. Both phones vibrate and speak.
 3. Phone B: follow the arrows to the staircase, then **Continue to Level 2 … Ground**, out to the field, and check in safe.
 4. Laptop (while Phone B is still on Level 3): tick that staircase as blocked → Phone B's arrows switch to another staircase.
@@ -121,14 +186,13 @@ from `routableFloors`. Each floor has its own `transform` because each screensho
 
 - **Polling (1.5 s) instead of WebSockets/MQTT**: runs unchanged on Vercel; nobody notices the delay.
 - **One Next.js app instead of React Native + Electron + NestJS**: three pages, one deploy, 4-hour build.
-- **No sign-in on the demo flows**: people type a name; anyone with the URL can trigger the alarm.
-  Better Auth and `/sign-in` are still in the project. Before real use: add roles, `requireUser()` in
-  `src/server/emergency.ts`, and guard `/dashboard` in `src/proxy.ts`.
-- **Location = the room saved in setup**, not GPS/beacons. QR codes are hard to aim at when you can't
-  see; NFC door tags are the planned next step.
+- **Roles from email lists in the environment**, not a roles table or an admin screen: nothing to build, and
+  nobody can promote themselves. Before real use, connect it to the university's staff directory.
+- **Location = the room the person picks each visit**, not GPS/beacons, and it is not stored. QR codes are
+  hard to aim at when you can't see; NFC door tags are the planned next step.
 - **Escalation is computed from waiting time** (`ESCALATION_SECONDS`, default 15), so no background job.
 - **System fonts**: nothing to download during an emergency.
-- **No AR, no desktop app, no offline database** in this cut.
+- **Camera arrows use the compass, not computer vision**, and the classroom alert is a startup script, not a desktop app. No offline database in this cut.
 
 ## Known limits
 
