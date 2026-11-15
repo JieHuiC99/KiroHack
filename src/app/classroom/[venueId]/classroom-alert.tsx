@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BUTTON, EndDot, MapHint, MAP_SIZE, Notice, RouteMap3D, SCREEN, ScreenHeader, ScreenTitle, StartDot, Summary } from "@/components/sunsafe-screen";
 import { speak } from "@/lib/client/announce";
+import { findEvacuationRoute, level3 } from "@/lib/floor/building";
 import { post, usePolled } from "@/lib/client/live";
 import { startSiren, stopSiren } from "@/lib/client/siren";
 import type { VenueState } from "@/lib/validation/venues";
@@ -18,6 +20,9 @@ export function ClassroomAlert({ venue }: { venue: Venue }) {
   const { state, offline } = usePolled<VenueState>(`/api/venues/${venue.id}`);
   const [audible, setAudible] = useState(false);
   const [error, setError] = useState("");
+  const [shownFloorId, setShownFloorId] = useState(level3.id);
+  // Only Level 3 rooms are mapped so far; other venues get the written message without a map.
+  const route = findEvacuationRoute(level3.id, venue.id);
 
   const alarm = state?.emergency ?? null;
   const alert = state?.venue.alert ?? null;
@@ -57,72 +62,103 @@ export function ClassroomAlert({ venue }: { venue: Venue }) {
     setError(result.error ?? "");
   }
 
+  const map = route ? (
+    <>
+      <RouteMap3D
+        route={route.path}
+        startFloorId={level3.id}
+        startRoomId={venue.id}
+        shownFloorId={shownFloorId}
+        onShowFloor={setShownFloorId}
+        hereLabel="This classroom"
+        className={MAP_SIZE}
+      />
+      <MapHint />
+    </>
+  ) : null;
+  const details: [React.ReactNode, React.ReactNode][] = [
+    ["Class", session ? `${session.code} · ${session.lecturer} · ${session.students} students` : "No class timetabled now"],
+    ...(route
+      ? ([
+          [<><StartDot />From</>, `${venue.name}, ${venue.level}`],
+          [<><EndDot />Exit</>, route.stairName],
+        ] as [React.ReactNode, React.ReactNode][])
+      : []),
+    ["Assembly", assemblyPoint.replace(/^the /, "The ")],
+  ];
+
   if (prompting) {
     return (
       // Any click on the screen is enough for the browser to allow the siren, if it hasn't started by itself.
-      <main
-        role="alertdialog"
-        aria-labelledby="alarm-title"
-        aria-describedby="alarm-text"
-        onPointerDown={() => setAudible(startSiren())}
-        className="fixed inset-0 z-50 flex animate-[alarm-flash_1s_steps(1)_infinite] flex-col items-center justify-center gap-6 bg-red-700 p-6 text-center text-white sm:gap-8"
-      >
-        <h1 id="alarm-title" className="text-5xl font-black tracking-wide sm:text-7xl">
+      <main role="alertdialog" aria-labelledby="alarm-title" aria-describedby="alarm-text" onPointerDown={() => setAudible(startSiren())} className="min-h-dvh bg-white">
+        <p aria-hidden="true" className="animate-[alarm-flash_1s_steps(1)_infinite] bg-[#b91c1c] py-2 text-center text-lg font-black tracking-widest text-white">
           FIRE ALARM
-        </h1>
-        <p id="alarm-text" className="max-w-4xl text-2xl leading-snug font-bold sm:text-4xl">
-          {message}
         </p>
-        {session ? (
-          <p className="text-xl sm:text-2xl">
-            {session.lecturer}: take {session.code} ({session.students} students) with you.
+        <div className={SCREEN}>
+          <ScreenHeader pill={`Fire alarm · ${venue.name}`} tone="alarm" home="/classroom" />
+          <section className="flex flex-col gap-2">
+            <ScreenTitle id="alarm-title" title={repeated ? `Leave ${venue.name} now` : `Evacuate ${venue.name} now`} subtitle={<span id="alarm-text">{message}</span>} />
+            {map}
+          </section>
+          <button type="button" autoFocus onClick={acknowledge} className={`${BUTTON.base} ${BUTTON.danger} min-h-20 text-2xl`}>
+            I&apos;ll evacuate right now
+          </button>
+          <p role="status" className="text-center text-sm font-semibold text-[#4f6970]">
+            {error || (audible ? "The siren stops when you press the button." : "Click anywhere to turn the siren on.")}
           </p>
-        ) : null}
-        <button
-          type="button"
-          autoFocus
-          onClick={acknowledge}
-          className="min-h-24 w-full max-w-3xl rounded-2xl border-4 border-white bg-yellow-300 p-5 text-2xl font-black text-black sm:text-4xl"
-        >
-          I&apos;ll evacuate right now to {assemblyPoint}
-        </button>
-        <p role="status" className="text-lg font-semibold sm:text-xl">
-          {error || (audible ? "The siren stops when you press the button." : "Click anywhere to turn the siren on.")}
-        </p>
+          <Summary rows={details} />
+        </div>
       </main>
     );
   }
 
+  const status = offline ? "Offline" : !state ? "Connecting…" : alarm && alert ? (alert.cleared ? "Room cleared" : "Evacuating") : "On watch";
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-5 p-4 text-lg sm:p-6 sm:text-xl">
-      <header className="flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold">{venue.name}</h1>
-        <Link href="/classroom" className="underline">
-          Change room
-        </Link>
-      </header>
-
-      {alarm && alert ? (
-        <p role="status" className="rounded-xl bg-red-800 p-5 text-2xl font-bold text-white">
-          {alert.cleared
+    <main className={SCREEN}>
+      <ScreenHeader
+        pill={status}
+        tone={alarm && alert && !alert.cleared ? "alarm" : offline ? "info" : "calm"}
+        home="/classroom"
+        right={
+          <Link href="/classroom" className="text-sm font-semibold text-[#4f6970] underline">
+            Change room
+          </Link>
+        }
+      />
+      <section className="flex flex-col gap-2">
+        <ScreenTitle
+          title={alarm && alert && !alert.cleared ? `Evacuate ${venue.name}` : venue.name}
+          subtitle={
+            alarm && alert
+              ? alert.cleared
+                ? "The emergency team has confirmed this room is empty."
+                : `Acknowledged. Leave the room now and go to ${assemblyPoint}. Use the emergency staircase, not the lifts.`
+              : "Keep this page open. If the fire alarm goes off, an alert with a siren appears here until someone presses the button."
+          }
+        />
+        {map}
+      </section>
+      <p role="status" className="sr-only">
+        {alarm && alert
+          ? alert.cleared
             ? "The emergency team has confirmed this room is empty."
-            : `Acknowledged. Leave the room now and go to ${assemblyPoint}. Use the emergency staircase, not the lifts.`}
-        </p>
-      ) : (
-        <p role="status" className="rounded-xl border-2 border-black p-4 text-xl font-semibold sm:text-2xl">
-          {offline ? "No connection. Reconnecting…" : !state ? "Connecting…" : "No emergency right now. This screen is on watch."}
-        </p>
-      )}
-
-      <p>
-        {session
-          ? `Class in this room now: ${session.code} ${session.title}, ${session.lecturer}, ${session.startsAt} to ${session.endsAt}.`
-          : "No class is timetabled in this room right now."}
+            : `Acknowledged. Leave the room now and go to ${assemblyPoint}.`
+          : offline
+            ? "No connection. Reconnecting…"
+            : !state
+              ? "Connecting…"
+              : "No emergency right now. This screen is on watch."}
       </p>
-      <p>Keep this page open. If the fire alarm is triggered, a full-screen alert with a siren appears here and stays until someone presses the button.</p>
+      {offline ? <Notice>No connection. Reconnecting…</Notice> : null}
+      <Summary rows={details} />
+      {session ? (
+        <p className="px-1 text-[15px] text-[#4f6970]">
+          Class in this room now: {session.code} {session.title}, {session.startsAt} to {session.endsAt}.
+        </p>
+      ) : null}
       <button
         type="button"
-        className="min-h-16 rounded-xl bg-black p-4 text-xl font-bold text-white"
+        className={`${BUTTON.base} ${BUTTON.dark} text-lg`}
         onClick={() => {
           // This click also lets the browser play the siren later without asking again.
           startSiren();

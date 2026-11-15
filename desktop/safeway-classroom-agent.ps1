@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-  SafeWay classroom agent: runs in the background on a classroom PC and puts the fire alert on screen.
+  SunSafe classroom agent: runs in the background on a classroom PC and puts the fire alert on screen.
 
 .DESCRIPTION
   A web page cannot open itself, come in front of a lecturer's slides or play a siren without a click.
   This script is the small piece that can. It starts when the PC user logs in (see install-startup.ps1),
-  asks the SafeWay server every few seconds whether this room has an alarm to answer, and when it does,
+  asks the SunSafe server every few seconds whether this room has an alarm to answer, and when it does,
   opens the room's alert page full-screen (kiosk) in Microsoft Edge with sound allowed. When someone
   presses "I'll evacuate right now" the page tells the server, and this script closes the window.
   If the emergency team repeats the siren, the window opens again.
@@ -30,7 +30,7 @@ $Server = $Server.TrimEnd('/')
 $stateUrl = "$Server/api/venues/$Venue"
 $alertUrl = "$Server/classroom/$Venue"
 # A profile of its own, so the autoplay flag applies even if the lecturer already has the browser open.
-$profileDir = Join-Path $env:LOCALAPPDATA 'SafeWay\alert-browser'
+$profileDir = Join-Path $env:LOCALAPPDATA 'SunSafe\alert-browser'
 
 function Find-Browser {
   $candidates = @(
@@ -69,7 +69,7 @@ $window = $null       # the browser process showing the alert, if any
 $showing = $false
 $answeredAt = $null   # when we first saw the alert acknowledged while the window was open
 
-Write-Host "SafeWay classroom agent watching $stateUrl every $PollSeconds s"
+Write-Host "SunSafe classroom agent watching $stateUrl every $PollSeconds s"
 while ($true) {
   try {
     $state = Invoke-RestMethod -Uri $stateUrl -TimeoutSec 10
@@ -97,7 +97,7 @@ while ($true) {
   }
   catch {
     # Server unreachable or restarting: keep trying. An alarm must not be missed because of one bad request.
-    Write-Host "SafeWay agent: $($_.Exception.Message)"
+    Write-Host "SunSafe agent: $($_.Exception.Message)"
   }
   Start-Sleep -Seconds $PollSeconds
 }

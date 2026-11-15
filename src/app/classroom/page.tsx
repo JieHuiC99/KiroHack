@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { venueGroups, venues } from "@/lib/venues";
 
-export const metadata: Metadata = { title: "SafeWay — Classroom alert" };
+export const metadata: Metadata = { title: "SunSafe — Classroom alert" };
 
 /** Pick which room this computer is in. Done once per classroom PC; the startup agent then opens it directly. */
 export default function ClassroomPicker() {

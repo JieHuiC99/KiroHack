@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Makes the SafeWay classroom agent start by itself whenever this Windows user logs in.
+  Makes the SunSafe classroom agent start by itself whenever this Windows user logs in.
 
 .DESCRIPTION
   Puts a shortcut in the user's Startup folder that runs safeway-classroom-agent.ps1 hidden, and starts it
@@ -20,14 +20,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$shortcutPath = Join-Path ([Environment]::GetFolderPath('Startup')) 'SafeWay classroom alert.lnk'
+$shortcutPath = Join-Path ([Environment]::GetFolderPath('Startup')) 'SunSafe classroom alert.lnk'
 
 if ($Remove) {
   if (Test-Path $shortcutPath) { Remove-Item $shortcutPath }
   Write-Host 'Removed. The agent will not start at the next login (it keeps running until you log out).'
   return
 }
-if (-not $Server -or -not $Venue) { throw 'Give both -Server (the SafeWay address) and -Venue (the room id), or -Remove.' }
+if (-not $Server -or -not $Venue) { throw 'Give both -Server (the SunSafe address) and -Venue (the room id), or -Remove.' }
 
 $agent = Join-Path $PSScriptRoot 'safeway-classroom-agent.ps1'
 if (-not (Test-Path $agent)) { throw "safeway-classroom-agent.ps1 must be in the same folder as this script ($PSScriptRoot)." }
@@ -43,7 +43,7 @@ $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $powershell
 $shortcut.Arguments = $arguments
 $shortcut.WindowStyle = 7 # minimised
-$shortcut.Description = 'Shows the SafeWay fire alert on this classroom PC'
+$shortcut.Description = 'Shows the SunSafe fire alert on this classroom PC'
 $shortcut.Save()
 
 Start-Process -FilePath $powershell -ArgumentList $arguments -WindowStyle Hidden
