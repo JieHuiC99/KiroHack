@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handle } from "@/lib/api";
+import { requireApiUser } from "@/lib/session";
 import { helpActionInput } from "@/lib/validation/emergency";
 import { acceptHelp, resolveHelp } from "@/server/emergency";
 
 export function POST(request: Request, context: RouteContext<"/api/help/[id]">) {
   return handle(async () => {
+    const responder = await requireApiUser(request, "responder", "team");
     const { id } = await context.params;
     if (!z.uuid().safeParse(id).success) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const body = helpActionInput.parse(await request.json());
-    const changed = body.action === "accept" ? await acceptHelp(id, body.responderName) : await resolveHelp(id);
+    const { action } = helpActionInput.parse(await request.json());
+    const changed = action === "accept" ? await acceptHelp(id, responder.name) : await resolveHelp(id);
     return { ok: changed };
   });
 }

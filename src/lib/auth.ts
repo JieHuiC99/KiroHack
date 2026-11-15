@@ -16,6 +16,13 @@ export const auth = betterAuth({
     max: Number(process.env.DB_POOL_MAX ?? 3),
   }),
   emailAndPassword: { enabled: true, minPasswordLength: 8 },
+  user: {
+    additionalFields: {
+      // How the person evacuates: "other" (sees the screen, uses stairs), "blind" or "wheelchair".
+      // Chosen by the person at sign-in. It grants nothing: roles come from src/lib/roles.ts, never from here.
+      profile: { type: "string", required: false, defaultValue: "other", input: true },
+    },
+  },
   // Vercel preview URLs change per deployment; trust the current one explicitly.
   trustedOrigins: [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]
     .filter(Boolean)

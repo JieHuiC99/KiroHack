@@ -4,9 +4,10 @@ import type { Floor } from "./types";
  * Sunway University building, Level 3 — traced by hand from a screenshot of the campus app map.
  *
  * ⚠ PROTOTYPE DATA. Shapes are approximate and the scale is a guess. The four corner blocks
- * drawn with stair lines in the app are assumed to be the fire staircases, and the larger
- * multi-cell blocks are assumed to be lifts. Check both against the evacuation plan posted on
- * the floor and confirm with the Health & Safety Office before anyone relies on a route.
+ * drawn with stair lines in the app are the emergency staircases, and the multi-cell blocks are
+ * the lift banks. The Bomba (firefighters') lift is the end car of each bank, as marked with a red
+ * cross on the fire plan posted on the floor. The posted plan is drawn with this map's west on top.
+ * Confirm with the Health & Safety Office before anyone relies on a route.
  *
  * Units are screenshot pixels (x → right/east, y → down/south). Doors and junctions must sit
  * exactly on a walkway line, or the room can't be routed (routing.test.ts checks this).
@@ -49,7 +50,8 @@ export const level3: Floor = {
     { id: "sbs-pg", name: "SBS Postgraduate Research Room", kind: "room", x: 60, y: 514, w: 68, h: 38, door: { x: 137, y: 533 } },
     { id: "w-office", name: "West wing office", kind: "office", x: 60, y: 552, w: 68, h: 40, door: { x: 137, y: 572 } },
     { id: "w-toilet", name: "Toilet (west)", kind: "toilet", x: 60, y: 592, w: 33, h: 41 },
-    { id: "l3-lift-w", name: "", kind: "lift", x: 113, y: 592, w: 15, h: 56 },
+    { id: "l3-lift-w", name: "", kind: "lift", x: 113, y: 592, w: 15, h: 42 },
+    { id: "bomba-w", name: "West Bomba lift", kind: "bombaLift", x: 113, y: 634, w: 15, h: 14, door: { x: 137, y: 641 } },
     { id: "stair-sw", name: "South-west staircase", kind: "stairs", x: 60, y: 636, w: 22, h: 14, door: { x: 70, y: 660 } },
     { id: "home-lab", name: "H.O.M.E Lab", kind: "room", x: 60, y: 670, w: 85, h: 65, door: { x: 137, y: 660 } },
 
@@ -73,7 +75,8 @@ export const level3: Floor = {
     { id: "staff-e", name: "Academic Staffroom L3 (east)", kind: "office", x: 454, y: 440, w: 21, h: 128 },
     { id: "meeting-2", name: "Meeting Room 2", kind: "room", x: 422, y: 568, w: 53, h: 24, door: { x: 415, y: 580 } },
     { id: "e-toilet", name: "Toilet (east)", kind: "toilet", x: 437, y: 596, w: 38, h: 40 },
-    { id: "l3-lift-e", name: "", kind: "lift", x: 392, y: 600, w: 16, h: 22 },
+    { id: "l3-lift-e", name: "", kind: "lift", x: 392, y: 600, w: 16, h: 12 },
+    { id: "bomba-e", name: "East Bomba lift", kind: "bombaLift", x: 392, y: 612, w: 16, h: 10, door: { x: 400, y: 632 } },
     { id: "stair-se", name: "South-east staircase", kind: "stairs", x: 452, y: 638, w: 22, h: 15, door: { x: 452, y: 648 } },
     { id: "meeting-1", name: "Meeting Room 1", kind: "room", x: 388, y: 660, w: 62, h: 78, door: { x: 415, y: 650 } },
     { id: "e-office", name: "East wing office", kind: "office", x: 452, y: 655, w: 22, h: 75 },

@@ -1,10 +1,12 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { FloorMap3D } from "@/components/floor-map-3d";
 import { RequestList, toPins } from "@/components/request-list";
 import { post, secondsSince, useLiveState } from "@/lib/client/live";
 import { getFloor, level3 } from "@/lib/floor/building";
-import { staircases } from "@/lib/floor/routing";
+import { bombaLifts, staircases } from "@/lib/floor/routing";
+import type { AppUser } from "@/lib/roles";
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -15,7 +17,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-export function Dashboard() {
+export function Dashboard({ user }: { user: AppUser }) {
   const { state, offline } = useLiveState();
   const [error, setError] = useState("");
 
@@ -34,7 +36,10 @@ export function Dashboard() {
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-3 text-base sm:gap-5 sm:p-5 sm:text-lg">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">SafeWay control dashboard</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">SunSafe control dashboard</h1>
+          <p className="text-base">
+            {user.name} · disaster recovery team · <Link href="/monitor" className="underline">Venue monitor</Link> · <Link href="/" className="underline">Account</Link>
+          </p>
           <p role="status">
             {offline
               ? "No connection. Reconnecting…"
@@ -78,14 +83,14 @@ export function Dashboard() {
             className="h-[55dvh] min-h-72 w-full overflow-hidden rounded-xl border sm:h-[34rem]"
           />
           <p className="text-base">
-            One floor at a time: use the floor buttons to switch level. Drag to rotate, scroll or pinch to zoom. Green blocks are the fire staircases, pins are
+            One floor at a time: use the floor buttons to switch level. Drag to rotate, scroll or pinch to zoom. Green blocks are the emergency staircases, red blocks with a white cross are the Bomba lifts (for people who cannot use stairs), pins are
             people waiting for help, and the green field on the ground floor is the assembly point.
           </p>
 
           <fieldset disabled={!emergency} className="rounded-xl border-2 border-black p-4 disabled:opacity-50">
-            <legend className="px-2 font-bold">Blocked staircases (routes update on every phone)</legend>
+            <legend className="px-2 font-bold">Blocked staircases and Bomba lifts (routes update on every phone)</legend>
             <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
-              {staircases(floor).map((stair) => (
+              {[...staircases(floor), ...bombaLifts(floor)].map((stair) => (
                 <label key={stair.id} className="flex min-h-11 cursor-pointer items-center gap-3">
                   <input
                     type="checkbox"

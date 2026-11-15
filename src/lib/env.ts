@@ -13,6 +13,11 @@ const schema = z
     DATABASE_SSL: bool,
     BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
     BETTER_AUTH_URL: z.string().url().optional(),
+    // Comma-separated email addresses. Everyone not listed is a student (src/lib/roles.ts).
+    EMERGENCY_TEAM_EMAILS: z.string().optional(),
+    RESPONDER_EMAILS: z.string().optional(),
+    CLASSROOM_DEVICE_KEY: z.string().min(24, "CLASSROOM_DEVICE_KEY must be at least 24 characters").optional(),
+    NEXT_PUBLIC_CCTV_URL_TEMPLATE: z.string().includes("{venue}", "NEXT_PUBLIC_CCTV_URL_TEMPLATE must contain {venue}").optional(),
     VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
   })
   .refine((env) => !(env.VERCEL_ENV === "production" && env.DB_SYNC === "true"), {

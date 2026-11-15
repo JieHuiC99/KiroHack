@@ -40,8 +40,15 @@ const ROOM_COLOURS: Record<Room["kind"], number> = {
   office: 0xb9763a,
   toilet: 0x2f5fb3,
   stairs: 0x1fa971,
+  bombaLift: 0xdc2626,
   lift: 0x9fb8b0,
 };
+/** The same three colours, as CSS, for the key drawn over the map. */
+const KEY = [
+  { colour: "#1fa971", label: "Emergency stairs", cross: false },
+  { colour: "#dc2626", label: "Bomba lift", cross: true },
+  { colour: "#9fb8b0", label: "Lift: do not use", cross: false },
+];
 const PIN_COLOURS: Record<MapPin["tone"], number> = {
   pending: 0xe11d48,
   escalated: 0xe11d48,
@@ -53,6 +60,7 @@ const FIELD_COLOUR = 0x4d8a1f;
 const BLOCKED_COLOUR = 0x7f1d1d;
 const ROUTE_COLOUR = 0xff6a00;
 const HERE_COLOUR = 0x2563eb;
+const MIN_VIEW_METRES = 40; // the camera never zooms in closer than this much floor
 const ARROW_SPACING = 3.5; // metres between direction arrows
 const ARROW_SPEED = 2.5; // metres per second
 
@@ -121,7 +129,8 @@ function buildFloor(floor: Floor, active: Floor, blocked: Set<string>, highlight
   }
 
   for (const room of floor.rooms) {
-    const isBlocked = room.kind === "stairs" && blocked.has(room.id);
+    const isExit = room.kind === "stairs" || room.kind === "bombaLift";
+    const isBlocked = isExit && blocked.has(room.id);
     const isHere = floor === active && room.id === highlightRoomId;
     const colour = isBlocked ? BLOCKED_COLOUR : isHere ? HERE_COLOUR : ROOM_COLOURS[room.kind];
     const geometry = new THREE.BoxGeometry(
@@ -137,9 +146,22 @@ function buildFloor(floor: Floor, active: Floor, blocked: Set<string>, highlight
     outline.position.copy(box.position);
     group.add(outline);
 
-    if (room.name !== "" && (room.kind === "room" || room.kind === "stairs")) {
+    // The Bomba lift carries the white cross it has on the posted fire plans, so it can't be taken for an ordinary lift.
+    if (room.kind === "bombaLift") {
+      const width = toMetresLength(floor, room.w) - 0.3;
+      const depth = toMetresLength(floor, room.h) - 0.3;
+      for (const angle of [Math.atan2(depth, width), -Math.atan2(depth, width)]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(width, depth) * 0.9, 0.12, 0.35), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        bar.position.copy(world(floor, centreOf(room), WALL_HEIGHT + 0.06));
+        bar.rotation.y = angle;
+        group.add(bar);
+      }
+    }
+
+    if (room.name !== "" && (room.kind === "room" || isExit)) {
       const text = isBlocked ? `${room.name} — BLOCKED` : room.name;
-      const label = textSprite(text, isBlocked ? "#7f1d1d" : room.kind === "stairs" ? "#065f46" : "#111827");
+      const colour = isBlocked ? "#7f1d1d" : room.kind === "stairs" ? "#065f46" : room.kind === "bombaLift" ? "#991b1b" : "#111827";
+      const label = textSprite(text, colour, 2.2, isExit);
       label.position.copy(world(floor, centreOf(room), WALL_HEIGHT + 1.6));
       group.add(label);
     }
@@ -197,6 +219,18 @@ function buildOverlay(shown: Floor, active: Floor, fullRoute: RoutePoint[], pins
       pulsing.push(marker);
       const label = textSprite("You", "#1d4ed8", 2.6, true);
       label.position.copy(here).y += WALL_HEIGHT + 1.8;
+      group.add(label);
+    }
+
+    // Nothing left to walk on this floor, but the route carries on below: point down.
+    if (points.length === 1 && !endsHere) {
+      const down = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.6, 20), arrowMaterial);
+      down.rotation.x = Math.PI;
+      down.position.copy(points[0]).y += WALL_HEIGHT + 3.4;
+      group.add(down);
+      pulsing.push(down);
+      const label = textSprite("Go down from here", "#9a3412", 2.6, true);
+      label.position.copy(points[0]).y += WALL_HEIGHT + 6.4;
       group.add(label);
     }
 
@@ -396,7 +430,12 @@ export function FloorMap3D({ floor, route, pins = [], blockedStairIds = [], high
     const current = sceneRef.current;
     if (!current) return;
     const points = ((JSON.parse(focusKey) as RoutePoint[] | null) ?? []).filter((p) => p.floorId === shown.id).map((p) => world(shown, p));
-    frame(current, points.length > 1 ? new THREE.Box3().setFromPoints(points) : floorBox(shown));
+    if (points.length < 2) return frame(current, floorBox(shown));
+    // Near the end of a floor only a few metres of route are left: keep enough of the surroundings in view to recognise the place.
+    const box = new THREE.Box3().setFromPoints(points);
+    const short = MIN_VIEW_METRES - Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+    if (short > 0) box.expandByVector(new THREE.Vector3(short / 2, 0, short / 2));
+    frame(current, box);
   }, [shown, focusKey]);
 
   const routeFloorIds = new Set(route?.map((p) => p.floorId));
@@ -417,6 +456,16 @@ export function FloorMap3D({ floor, route, pins = [], blockedStairIds = [], high
         {shown.label}
         {isFireFloor(shown) ? <span className="text-red-400"> — FIRE</span> : null}
       </p>
+      <ul aria-label="Map key" className="pointer-events-none absolute top-2 right-2 flex flex-col gap-1 rounded-lg bg-black/80 px-2 py-1.5 text-xs font-bold text-white sm:text-sm">
+        {KEY.map((item) => (
+          <li key={item.label} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="grid size-3.5 place-items-center rounded-sm text-[0.6rem] leading-none text-white" style={{ background: item.colour }}>
+              {item.cross ? "✕" : ""}
+            </span>
+            {item.label}
+          </li>
+        ))}
+      </ul>
       <div role="group" aria-label="Floor shown on the map" className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5 px-2">
         {floors.map((f) => {
           const isShown = f === shown;

@@ -33,7 +33,8 @@ export function toMetresLength(floor: Floor, length: number) {
 
 /**
  * Room → best staircase → down the stairs → across the ground floor → assembly point.
- * People who can't use stairs get the same-floor route to the landing only.
+ * People who can't use stairs go to a Bomba lift, wait there for a helper, ride down together and
+ * then cross the ground floor. With no usable Bomba lift they get the same-floor route to a landing only.
  */
 export function findEvacuationRoute(floorId: string, roomId: string, options: RouteOptions = {}): EvacuationRoute | null {
   const floor = getFloor(floorId);
@@ -43,7 +44,29 @@ export function findEvacuationRoute(floorId: string, roomId: string, options: Ro
 
   if (options.needsAssistance) {
     const route = findRoute(floor, roomId, options);
-    return route && { ...route, path: on(floor, route.points) };
+    if (!route) return null;
+    const liftExit = route.exitKind === "bombaLift" ? exits[route.stairId] : undefined;
+    if (!liftExit || floor === ground) return { ...route, path: on(floor, route.points) };
+    return {
+      ...route,
+      path: [...on(floor, route.points), ...on(ground, liftExit)],
+      steps: [
+        ...route.steps,
+        {
+          text: `Ground floor. Leave ${theStair(route.stairName)} with your helper and follow the arrows outside.`,
+          cue: "start",
+          at: { ...liftExit[0], floorId: ground.id },
+          phase: "ground",
+        },
+        ...walkingSteps(ground, liftExit, "ground", "following the arrows"),
+        {
+          text: `You have reached ${ground.assemblyPoint}. Stay here until the all clear.`,
+          cue: "arrive",
+          at: { ...liftExit[liftExit.length - 1], floorId: ground.id },
+          phase: "ground",
+        },
+      ],
+    };
   }
 
   const exitMetres = Object.fromEntries(Object.entries(exits).map(([id, points]) => [id, pathLength(points) * ground.metresPerUnit]));

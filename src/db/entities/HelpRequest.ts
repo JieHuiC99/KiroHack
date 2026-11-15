@@ -10,16 +10,25 @@ export class HelpRequest {
   @Column({ type: "uuid" })
   emergencyId!: string;
 
+  /** Better Auth user id of the person asking. */
+  @Index()
+  @Column({ type: "text", default: "" })
+  personId!: string;
+
   @Column({ type: "text" })
   personName!: string;
 
   @Column({ type: "text" })
   profile!: "blind" | "wheelchair" | "other";
 
-  @Column({ type: "text" })
-  roomId!: string;
+  /**
+   * Where the person said they were when they asked. Kept only while the rescue is open: it is wiped
+   * when the request is resolved or the emergency ends, so no record of anyone's whereabouts is left behind.
+   */
+  @Column({ type: "text", nullable: true })
+  roomId!: string | null;
 
-  /** Staircase landing the person was told to wait at (null if every staircase is blocked). */
+  /** Bomba lift or staircase landing the person was told to wait at (null if none is usable). Wiped with `roomId`. */
   @Column({ type: "text", nullable: true })
   waitStairId!: string | null;
 

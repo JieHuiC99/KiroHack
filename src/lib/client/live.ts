@@ -4,21 +4,32 @@ import type { LiveState } from "@/lib/validation/emergency";
 
 const POLL_MS = 1500;
 
-/** Polls /api/state. `undefined` until the first answer arrives. */
-export function useLiveState() {
-  const [state, setState] = useState<LiveState>();
+/**
+ * Polls a JSON endpoint. `state` is `undefined` until the first answer arrives.
+ * `denied` is true when the server refuses (signed out, wrong role, wrong device key).
+ * Pass `key` to send the classroom device key; pass `null` as the url to wait.
+ */
+export function usePolled<T>(url: string | null, key?: string) {
+  const [state, setState] = useState<T>();
   const [offline, setOffline] = useState(false);
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
+    if (!url) return;
     let stopped = false;
     async function poll() {
       try {
-        const res = await fetch("/api/state", { cache: "no-store" });
+        const res = await fetch(url!, { cache: "no-store", headers: key ? { [DEVICE_KEY_HEADER]: key } : undefined });
+        if (res.status === 401 || res.status === 403) {
+          if (!stopped) setDenied(true);
+          return;
+        }
         if (!res.ok) throw new Error(String(res.status));
-        const next = (await res.json()) as LiveState;
+        const next = (await res.json()) as T;
         if (!stopped) {
           setState(next);
           setOffline(false);
+          setDenied(false);
         }
       } catch {
         if (!stopped) setOffline(true);
@@ -30,16 +41,22 @@ export function useLiveState() {
       stopped = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [url, key]);
 
-  return { state, offline };
+  return { state, offline, denied };
 }
 
-export async function post(path: string, body: unknown): Promise<{ error?: string }> {
+/** What the phone, responder and dashboard screens poll. */
+export const useLiveState = () => usePolled<LiveState>("/api/state");
+
+/** Must match DEVICE_KEY_HEADER in src/lib/session.ts (that file is server-only). */
+const DEVICE_KEY_HEADER = "x-safeway-device-key";
+
+export async function post(path: string, body: unknown, key?: string): Promise<{ error?: string }> {
   try {
     const res = await fetch(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(key ? { [DEVICE_KEY_HEADER]: key } : {}) },
       body: JSON.stringify(body),
     });
     const json = (await res.json().catch(() => ({}))) as { error?: string };

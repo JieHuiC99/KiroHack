@@ -1,4 +1,4 @@
-import type { Floor, Point, Room, Route, RouteStep, Turn } from "./types";
+import type { Floor, Point, Room, Route, RoutePoint, RouteStep, Turn } from "./types";
 
 // Pure functions: no React, no DB. Used by the phone (steps), the 3D map (route line)
 // and the server (waiting point for a help request), and unit-tested in routing.test.ts.
@@ -123,13 +123,15 @@ export function walkingSteps(floor: Floor, points: Point[], phase: RouteStep["ph
   return steps;
 }
 
-function describe(floor: Floor, room: Room, stair: Room, points: Point[], needsAssistance: boolean): RouteStep[] {
+function describe(floor: Floor, room: Room, exit: Room, points: Point[], needsAssistance: boolean): RouteStep[] {
   const at = (p: Point) => ({ ...p, floorId: floor.id });
   const last = points[points.length - 1];
   const steps: RouteStep[] = [];
+  const isLift = exit.kind === "bombaLift";
+  const what = isLift ? "Bomba lift" : "staircase";
 
   if (points.length < 2) {
-    steps.push({ text: `Leave ${room.name} through the door. The staircase is right outside.`, cue: "start", at: at(points[0]), phase: "floor" });
+    steps.push({ text: `Leave ${room.name} through the door. The ${what} is right outside.`, cue: "start", at: at(points[0]), phase: "floor" });
   } else {
     // Leaving the room you face away from it, across the corridor.
     const first = turnBetween(heading(centre(room), room.door!), heading(points[0], points[1]));
@@ -139,37 +141,55 @@ function describe(floor: Floor, room: Room, stair: Room, points: Point[], needsA
   steps.push(...walkingSteps(floor, points, "floor"));
 
   const facing = points.length < 2 ? heading(centre(room), room.door!) : heading(points[points.length - 2], last);
-  const side = turnBetween(facing, heading(last, centre(stair)));
-  steps.push({ text: `${stair.name} is ${sideText(side)}. Find the fire door.`, cue: side, arrow: side, at: at(last), phase: "floor" });
+  const side = turnBetween(facing, heading(last, centre(exit)));
+  steps.push({
+    text: isLift ? `${exit.name} is ${sideText(side)}. It is the lift marked with a red cross.` : `${exit.name} is ${sideText(side)}. Find the fire door.`,
+    cue: side,
+    arrow: side,
+    at: at(last),
+    phase: "floor",
+  });
 
-  steps.push(
-    needsAssistance
-      ? {
-          text: `Go through the fire door and wait on the landing of ${theStair(stair.name)}. Do not use the lift. Stay there until your helper arrives.`,
-          cue: "arrive",
-          at: at(last),
-          phase: "floor",
-        }
-      : {
-          text: `Go through the fire door. Hold the handrail and walk down ${floor.level} floors to the ground floor. Then follow the marshals to ${floor.assemblyPoint}.`,
-          cue: "arrive",
-          at: at(last),
-          phase: "stairs",
-        },
-  );
+  if (isLift) {
+    steps.push({
+      text: `Wait in front of ${theStair(exit.name)}. Do not use the ordinary lifts and do not ride alone. Your helper or the fire crew will take you down in the Bomba lift.`,
+      cue: "arrive",
+      at: at(last),
+      phase: "floor",
+      wait: true,
+    });
+  } else if (needsAssistance) {
+    steps.push({
+      text: `Go through the fire door and wait on the landing of ${theStair(exit.name)}. Do not use the lift. Stay there until your helper arrives.`,
+      cue: "arrive",
+      at: at(last),
+      phase: "floor",
+      wait: true,
+    });
+  } else {
+    steps.push({
+      text: `Go through the fire door. Hold the handrail and walk down ${floor.level} floors to the ground floor. Then follow the marshals to ${floor.assemblyPoint}.`,
+      cue: "arrive",
+      at: at(last),
+      phase: "stairs",
+    });
+  }
   return steps;
 }
 
 export type RouteOptions = {
-  /** Staircases confirmed unusable by the emergency team. */
+  /** Staircases and Bomba lifts confirmed unusable by the emergency team. */
   blockedStairIds?: string[];
-  /** True for people who can't use stairs: the route ends at the staircase landing. */
+  /**
+   * True for people who can't use stairs: the route goes to a Bomba lift, where a helper takes them down.
+   * If no Bomba lift can be reached, it ends on a staircase landing instead.
+   */
   needsAssistance?: boolean;
   /** Extra walk after each staircase (stair id → metres), so the choice counts the whole journey. */
   exitMetres?: Record<string, number>;
 };
 
-/** Shortest walk from a room to the best usable staircase on the same floor, or null if there isn't one. */
+/** Shortest walk from a room to the best usable exit on the same floor, or null if there isn't one. */
 export function findRoute(floor: Floor, roomId: string, options: RouteOptions = {}): Route | null {
   const room = floor.rooms.find((r) => r.id === roomId);
   if (!room?.door) return null;
@@ -177,31 +197,65 @@ export function findRoute(floor: Floor, roomId: string, options: RouteOptions = 
   const graph = buildGraph(floor);
   const { cost, previous } = shortestPaths(graph, room.door);
   const blocked = new Set(options.blockedStairIds ?? []);
-  const total = (stair: Room) => cost.get(key(stair.door!))! * floor.metresPerUnit + (options.exitMetres?.[stair.id] ?? 0);
+  const total = (exit: Room) => cost.get(key(exit.door!))! * floor.metresPerUnit + (options.exitMetres?.[exit.id] ?? 0);
+  const nearest = (kind: Room["kind"]) =>
+    floor.rooms.filter((r) => r.kind === kind && r.door && !blocked.has(r.id) && cost.has(key(r.door))).sort((a, b) => total(a) - total(b))[0];
 
-  const stair = floor.rooms
-    .filter((r) => r.kind === "stairs" && r.door && !blocked.has(r.id) && cost.has(key(r.door)))
-    .sort((a, b) => total(a) - total(b))[0];
-  if (!stair) return null;
+  // Stairs for everyone who can walk. A Bomba lift for those who can't; a staircase landing only if no Bomba lift is usable.
+  const exit = (options.needsAssistance ? nearest("bombaLift") : undefined) ?? nearest("stairs");
+  if (!exit) return null;
 
   const path: Point[] = [];
-  for (let k: string | undefined = key(stair.door!); k; k = previous.get(k)) {
+  for (let k: string | undefined = key(exit.door!); k; k = previous.get(k)) {
     path.unshift(graph.get(k)!.point);
   }
   const points = mergeStraightRuns(path);
 
   return {
     fromRoomId: room.id,
-    stairId: stair.id,
-    stairName: stair.name,
+    stairId: exit.id,
+    stairName: exit.name,
+    exitKind: exit.kind === "bombaLift" ? "bombaLift" : "stairs",
     points,
-    metres: Math.round(cost.get(key(stair.door!))! * floor.metresPerUnit),
-    steps: describe(floor, room, stair, points, options.needsAssistance ?? false),
+    metres: Math.round(cost.get(key(exit.door!))! * floor.metresPerUnit),
+    steps: describe(floor, room, exit, points, options.needsAssistance ?? false),
   };
 }
 
+/**
+ * What is left of a route once the person has reached `position`: everything behind them is dropped,
+ * so the map only shows arrows for the way still to go.
+ */
+export function remainingPath(path: RoutePoint[], position: RoutePoint): RoutePoint[] {
+  let best = { index: -1, distance: Infinity, point: position };
+  const consider = (index: number, point: Point) => {
+    const distance = dist(point, position);
+    // On a tie the later part of the route wins: standing on a corner means the leg before it is done.
+    if (distance <= best.distance + 0.01) best = { index, distance, point: { ...point, floorId: position.floorId } };
+  };
+  path.forEach((a, i) => {
+    if (a.floorId !== position.floorId) return;
+    consider(i, a);
+    const b = path[i + 1];
+    if (b?.floorId !== a.floorId) return;
+    const length = dist(a, b);
+    if (length < 0.01) return;
+    const t = Math.min(1, Math.max(0, ((position.x - a.x) * (b.x - a.x) + (position.y - a.y) * (b.y - a.y)) / (length * length)));
+    consider(i, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  });
+  if (best.index === -1) return path;
+  const rest = path.slice(best.index + 1);
+  const next = rest[0];
+  const alreadyThere = next !== undefined && next.floorId === best.point.floorId && dist(next, best.point) < 0.01;
+  return alreadyThere ? rest : [best.point, ...rest];
+}
+
 export function selectableRooms(floor: Floor): Room[] {
-  return floor.rooms.filter((r) => r.kind !== "stairs" && r.door);
+  return floor.rooms.filter((r) => r.kind !== "stairs" && r.kind !== "bombaLift" && r.door);
+}
+
+export function bombaLifts(floor: Floor): Room[] {
+  return floor.rooms.filter((r) => r.kind === "bombaLift");
 }
 
 export function staircases(floor: Floor): Room[] {
