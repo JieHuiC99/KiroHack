@@ -1,0 +1,37 @@
+# `npm run db:up`                    → Postgres only (day-to-day dev: app runs with `npm run dev`)
+# `docker compose --profile app up --build` → Postgres + the production app image on :8080
+# Postgres 17 matches Supabase, so local behaviour == deployed behaviour.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app
+    ports:
+      - "${PGPORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  app:
+    profiles: ["app"]
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/app
+      BETTER_AUTH_URL: http://localhost:8080
+    ports:
+      - "8080:3000"
+
+volumes:
+  pgdata:
