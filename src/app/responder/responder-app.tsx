@@ -51,12 +51,6 @@ export function ResponderApp() {
   const mine = state?.requests.find((r) => r.status === "accepted" && r.responderName === name);
   // Show the person's route to their waiting point, so the responder knows where to meet them.
   const route = mine ? findEvacuationRoute(floor.id, mine.roomId, { blockedStairIds: blocked, needsAssistance: true }) : null;
-  // Before accepting, look at the emergency floor; after accepting, zoom to the person's route.
-  const floorCorners = floor.corridors.flatMap((c) => [
-    { x: c.x, y: c.y, floorId: floor.id },
-    { x: c.x + c.w, y: c.y + c.h, floorId: floor.id },
-  ]);
-
   async function act(id: string, body: object) {
     const result = await post(`/api/help/${id}`, body);
     setError(result.error ?? "");
@@ -82,9 +76,10 @@ export function ResponderApp() {
             floor={floor}
             pins={toPins(state.requests.filter((r) => r.status !== "resolved"))}
             route={route?.path}
-            focus={route?.path ?? floorCorners}
+            focus={route?.path}
+            alarm
             blockedStairIds={blocked}
-            className="h-[38dvh] min-h-56 w-full overflow-hidden rounded-xl border"
+            className="h-[42dvh] min-h-64 w-full overflow-hidden rounded-xl border"
           />
           <section aria-live="polite">
             <h2 className="mb-2 text-xl font-bold">Help requests</h2>
