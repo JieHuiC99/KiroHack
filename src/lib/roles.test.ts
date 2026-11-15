@@ -34,9 +34,9 @@ describe("toProfile", () => {
 describe("screens", () => {
   it("shows students only their own screen, and the team everything", () => {
     const visibleTo = (role: "student" | "responder" | "team") => SCREENS.filter((s) => s.roles.includes(role)).map((s) => s.href);
-    expect(visibleTo("student")).toEqual(["/me", "/guide/lt5-green-zone"]);
-    expect(visibleTo("responder")).toEqual(["/me", "/guide/lt5-green-zone", "/responder"]);
-    expect(visibleTo("team")).toEqual(["/me", "/guide/lt5-green-zone", "/responder", "/dashboard", "/guide/lt5-green-zone/print", "/monitor"]);
+    expect(visibleTo("student")).toEqual(["/me", "/route", "/guide/lt5-green-zone"]);
+    expect(visibleTo("responder")).toEqual(["/me", "/route", "/guide/lt5-green-zone", "/responder"]);
+    expect(visibleTo("team")).toEqual(["/me", "/route", "/guide/lt5-green-zone", "/responder", "/dashboard", "/guide/lt5-green-zone/print", "/monitor"]);
   });
 
   it("sends each role to its own screen after sign-in", () => {

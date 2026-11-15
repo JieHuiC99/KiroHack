@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { getVenue, venues } from "@/lib/venues";
 import { ClassroomAlert } from "./classroom-alert";
 
-export const metadata: Metadata = { title: "SafeWay — Classroom alert" };
+export const metadata: Metadata = { title: "SunSafe — Classroom alert" };
 
 export function generateStaticParams() {
   return venues.map((venue) => ({ venueId: venue.id }));

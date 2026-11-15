@@ -43,7 +43,7 @@ async function Screens({ searchParams }: { searchParams: PageProps<"/">["searchP
 export default function Home({ searchParams }: PageProps<"/">) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-6 p-6 text-xl">
-      <h1 className="text-4xl font-extrabold">SafeWay</h1>
+      <h1 className="text-4xl font-extrabold">SunSafe</h1>
       <p>Accessible evacuation guidance for blind, low-vision and mobility-impaired people on campus.</p>
       <Suspense>
         <Screens searchParams={searchParams} />

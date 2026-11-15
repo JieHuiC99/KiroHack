@@ -1,4 +1,4 @@
-# SafeWay
+# SunSafe
 
 Accessible evacuation guidance for campus emergencies. Hackathon prototype (Disaster Recovery theme),
 modelled on the Sunway University building: Ground, Mezzanine and Levels 1 to 3 in 3D, one floor at a time,

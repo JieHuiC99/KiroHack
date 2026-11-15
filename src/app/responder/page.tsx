@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { requirePageUser } from "@/lib/session";
 import { ResponderApp } from "./responder-app";
 
-export const metadata: Metadata = { title: "SafeWay — Responder" };
+export const metadata: Metadata = { title: "SunSafe — Responder" };
 
 /** Reads the session, so it renders per request inside <Suspense>. The APIs check the role again. */
 async function Gate() {

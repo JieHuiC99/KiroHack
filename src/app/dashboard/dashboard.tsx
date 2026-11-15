@@ -36,7 +36,7 @@ export function Dashboard({ user }: { user: AppUser }) {
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-3 text-base sm:gap-5 sm:p-5 sm:text-lg">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">SafeWay control dashboard</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">SunSafe control dashboard</h1>
           <p className="text-base">
             {user.name} · disaster recovery team · <Link href="/monitor" className="underline">Venue monitor</Link> · <Link href="/" className="underline">Account</Link>
           </p>

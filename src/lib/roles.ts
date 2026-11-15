@@ -34,6 +34,7 @@ export function toProfile(value: unknown): Profile {
 
 export const SCREENS: { href: string; title: string; text: string; roles: readonly Role[] }[] = [
   { href: "/me", title: "My evacuation", text: "Your way out: 3D map, camera arrows, voice and vibration.", roles },
+  { href: "/route", title: "Your way out (practice route)", text: "3D map: follow the orange line from UC-3-3 to the exit and out to the field. No setup needed.", roles },
   { href: "/guide/lt5-green-zone", title: "Camera route: LT5 to Green zone", text: "Scan the QR codes on the walls from Lecture Theatre 5 and follow the arrow outside.", roles },
   { href: "/responder", title: "Responder", text: "Accept a help request, find the person, mark them evacuated.", roles: ["responder", "team"] },
   { href: "/dashboard", title: "Control dashboard", text: "Trigger the alarm, block staircases and Bomba lifts, watch requests on the map.", roles: ["team"] },

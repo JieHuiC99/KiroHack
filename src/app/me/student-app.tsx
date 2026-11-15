@@ -1,14 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArGuide } from "@/components/ar-guide";
-import { FloorMap3D } from "@/components/floor-map-3d";
+import { BUTTON, EndDot, MapHint, MAP_SIZE, Notice, RouteMap3D, SCREEN, ScreenHeader, ScreenTitle, StartDot, StepCard, Summary } from "@/components/sunsafe-screen";
 import { speak, vibrate, VIBRATION } from "@/lib/client/announce";
 import { post, useLiveState } from "@/lib/client/live";
 import { findEvacuationRoute, getFloor, ground, level3 } from "@/lib/floor/building";
 import { mapBearing } from "@/lib/floor/bearing";
 import { pathLength, remainingPath, theStair } from "@/lib/floor/routing";
-import type { Turn } from "@/lib/floor/types";
 import type { AppUser } from "@/lib/roles";
 import type { LiveState, Profile } from "@/lib/validation/emergency";
 import { LocationForm, type Place } from "./setup-form";
@@ -43,47 +42,62 @@ function Standby({ settings, offline, loading, onMove }: { settings: Settings; o
   const room = level3.rooms.find((r) => r.id === settings.roomId);
   const route = findEvacuationRoute(level3.id, settings.roomId, { needsAssistance: settings.profile === "wheelchair" });
   const goesOutside = route?.path.some((p) => p.floorId === ground.id) ?? false;
+  const [shownFloorId, setShownFloorId] = useState(level3.id);
+  const status = offline ? "Offline · reconnecting" : loading ? "Connecting…" : "No emergency";
+  const destination =
+    route?.exitKind === "bombaLift" ? `${route.stairName}, then the field with a helper` : goesOutside ? "Assembly point, field" : route?.stairName;
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-4 p-4 text-lg sm:gap-6 sm:p-6 sm:text-xl">
-      <h1 className="text-3xl font-bold">SafeWay</h1>
-      <p role="status" className="rounded-xl border-2 border-black p-4 text-xl font-semibold sm:text-2xl">
+    <main className={SCREEN}>
+      <ScreenHeader pill={status} tone={offline ? "info" : "calm"} />
+      <p role="status" className="sr-only">
         {offline ? "No connection. Reconnecting…" : loading ? "Connecting…" : "No emergency right now."}
       </p>
 
-      {usesMap(settings) && route ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-xl font-bold">Your way out</h2>
-          <FloorMap3D
-            floor={level3}
-            route={route.path}
-            position={route.path[0]}
-            focus={route.path}
-            highlightRoomId={settings.roomId}
-            className="h-[45dvh] min-h-72 w-full overflow-hidden rounded-xl border-2 border-black"
-          />
-          <p>
-            From {room?.name}, {level3.label}: about {route.metres} metres to <strong>{theStair(route.stairName)}</strong>
-            {route.exitKind === "bombaLift"
-              ? `, where a helper takes you down in the Bomba lift and out to ${ground.assemblyPoint}`
-              : goesOutside
-                ? `, down ${level3.level} floors by the emergency staircase, then out to ${ground.assemblyPoint}`
-                : ", where a helper meets you on the landing"}
-            . Never use the ordinary lifts in a fire. Drag to rotate,
-            pinch to zoom, and use the floor buttons to look at each level.
-          </p>
-        </section>
-      ) : (
-        <p>
-          {settings.name}, you are set up in {room?.name ?? "an unknown room"}, {level3.label}.
-          {route ? ` Your way out is ${theStair(route.stairName)}, about ${route.metres} metres away.` : ""}
-        </p>
-      )}
+      <section className="flex flex-col gap-2">
+        <ScreenTitle
+          title="Your way out"
+          subtitle={usesMap(settings) ? "The route you'll follow if the alarm goes off." : `${settings.name}, this is the route you'll be guided along.`}
+        />
+        {usesMap(settings) && route ? (
+          <>
+            <RouteMap3D
+              route={route.path}
+              startFloorId={level3.id}
+              startRoomId={settings.roomId}
+              shownFloorId={shownFloorId}
+              onShowFloor={setShownFloorId}
+              exitLabel={route.exitKind === "bombaLift" ? "Wait here · Bomba lift" : undefined}
+              className={MAP_SIZE}
+            />
+            <MapHint />
+          </>
+        ) : null}
+      </section>
 
-      <p>Keep this page open: if an alarm starts, directions appear here.</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      {route ? (
+        <Summary
+          rows={[
+            [<><StartDot />From</>, `${room?.name ?? "Your room"}, ${level3.label}`],
+            [<><EndDot />To</>, destination],
+            ["Distance", `About ${route.metres} m to ${theStair(route.stairName)}`],
+          ]}
+        />
+      ) : (
+        <Notice tone="danger">No way out could be worked out from {room?.name ?? "your room"}. Ask the Health and Safety Office.</Notice>
+      )}
+      <p className="px-1 text-[15px] text-[#4f6970]">
+        {route?.exitKind === "bombaLift"
+          ? `If there's a fire, a helper takes you down in the Bomba lift and out to ${ground.assemblyPoint}. `
+          : goesOutside
+            ? `Down ${level3.level} floors by the emergency staircase, then out to ${ground.assemblyPoint}. `
+            : ""}
+        Never use the ordinary lifts in a fire. Keep this page open: if an alarm starts, directions appear here.
+      </p>
+
+      <div className="grid gap-2 sm:grid-cols-2">
         <button
           type="button"
-          className="min-h-16 rounded-xl bg-black p-4 text-xl font-bold text-white"
+          className={`${BUTTON.base} ${BUTTON.dark} text-lg`}
           onClick={() => {
             vibrate(VIBRATION.update);
             speak("Voice is working. You will hear evacuation instructions like this.");
@@ -91,30 +105,14 @@ function Standby({ settings, offline, loading, onMove }: { settings: Settings; o
         >
           Test voice and vibration
         </button>
-        <button type="button" className="min-h-16 rounded-xl border-2 border-black p-4 text-xl font-bold" onClick={onMove}>
+        <button type="button" className={`${BUTTON.base} ${BUTTON.quiet} text-lg`} onClick={onMove}>
           I have moved: change my room
         </button>
       </div>
-      <Link href="/" className="self-start underline">
+      <Link href="/" className="self-start px-1 text-[15px] font-semibold text-[#4f6970] underline">
         Account and sign out
       </Link>
     </main>
-  );
-}
-
-const ARROW_DEGREES: Record<Turn, number> = { straight: 0, right: 90, back: 180, left: -90 };
-
-/** Big arrow next to the written step. Decorative: the text already says the direction. */
-function TurnArrow({ turn }: { turn: Turn }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="size-14 shrink-0 text-yellow-300 sm:size-16"
-      style={{ transform: `rotate(${ARROW_DEGREES[turn]}deg)` }}
-    >
-      <path d="M12 2 20 11h-5v11H9V11H4z" fill="currentColor" />
-    </svg>
   );
 }
 
@@ -127,8 +125,8 @@ function helpStatusText(request: HelpRequest | undefined) {
   return "Help requested. Looking for a helper.";
 }
 
-const BIG = "min-h-[14dvh] flex-1 rounded-2xl p-4 text-3xl font-extrabold";
-const SMALL = "min-h-16 rounded-2xl p-3 text-xl font-extrabold";
+const BIG = `${BUTTON.base} min-h-[12dvh] text-2xl`;
+const SMALL = `${BUTTON.base} text-lg`;
 
 function EmergencyScreen({ settings, state, emergency, offline }: { settings: Settings; state: LiveState; emergency: Emergency; offline: boolean }) {
   const floor = getFloor(emergency.floorId) ?? level3;
@@ -174,6 +172,9 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const shownFloor = getFloor(position?.floorId ?? floor.id) ?? floor;
   const nextFloorId = route && index + 1 < route.steps.length ? route.steps[index + 1].at?.floorId : undefined;
   const nextFloor = nextFloorId && nextFloorId !== shownFloor.id ? getFloor(nextFloorId) : undefined;
+  // A floor picked by hand lasts until the next step, then the map follows the person again.
+  const [picked, setPicked] = useState({ index, floorId: shownFloor.id });
+  const mapFloorId = picked.index === index ? picked.floorId : shownFloor.id;
 
   // The alarm itself: one long vibration when this screen first appears.
   useEffect(() => vibrate(VIBRATION.alarm), []);
@@ -232,7 +233,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const size = (name: "next" | "help" | "repeat") => (!showMap || name === primary ? BIG : SMALL);
 
   const helpButton = (
-    <button key="help" type="button" onClick={askForHelp} className={`${size("help")} border-4 border-white bg-red-800 text-white`}>
+    <button key="help" type="button" onClick={askForHelp} className={`${size("help")} ${BUTTON.danger}`}>
       {helpIsOpen ? "Help requested — hear status" : "I need help"}
     </button>
   );
@@ -242,48 +243,32 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
       type="button"
       onClick={next}
       disabled={!route || isSafe || (atLastStep && waitingHere)}
-      className={`${size("next")} bg-yellow-300 text-black disabled:opacity-50`}
+      className={`${size("next")} ${BUTTON.primary}`}
     >
       {nextLabel}
     </button>
   );
   const repeatButton = (
-    <button key="repeat" type="button" onClick={repeat} className={`${size("repeat")} bg-white text-black`}>
+    <button key="repeat" type="button" onClick={repeat} className={`${size("repeat")} ${BUTTON.quiet}`}>
       Repeat
     </button>
   );
 
+  const subtitle = isSafe
+    ? "You're checked in at the assembly point."
+    : showMap && route
+      ? route.exitKind === "bombaLift"
+        ? "Go to the Bomba lift and wait there. A helper will take you down."
+        : "Follow the orange line and the white arrows to the exit."
+      : "Listen to each step, then press Next step.";
+
   return (
-    <main className="flex min-h-dvh flex-col bg-black text-white md:grid md:h-dvh md:grid-cols-[3fr_2fr] md:grid-rows-[auto_minmax(0,1fr)]">
-      <h1 className="p-3 text-center text-xl font-extrabold tracking-wide text-yellow-300 sm:text-2xl md:col-span-2">
-        FIRE EMERGENCY — {floor.label.toUpperCase()}
-      </h1>
+    <main className={SCREEN}>
+      <ScreenHeader pill={`Fire alarm · ${floor.label}`} tone="alarm" />
+      <h2 className="sr-only">Fire emergency on {floor.label}</h2>
 
-      {showMap && route && view === "camera" ? (
-        <ArGuide
-          bearing={legBearing}
-          metres={legMetres}
-          towards={legFloor.id === ground.id ? "the assembly point" : route.stairName}
-          goingDown={goingDown}
-          fallbackTurn={step?.arrow}
-          className="h-[42dvh] min-h-64 w-full md:h-full"
-        />
-      ) : showMap && route ? (
-        <FloorMap3D
-          floor={floor}
-          route={remaining}
-          position={position}
-          focus={remaining}
-          showFloorId={shownFloor.id}
-          returnKey={index}
-          alarm
-          blockedStairIds={emergency.blockedStairIds}
-          highlightRoomId={settings.roomId}
-          className="h-[42dvh] min-h-64 w-full md:h-full"
-        />
-      ) : null}
-
-      <div className={`flex flex-1 flex-col gap-3 p-3 md:overflow-y-auto ${showMap && route ? "" : "md:col-span-2 md:mx-auto md:w-full md:max-w-xl"}`}>
+      <section className="flex flex-col gap-2">
+        <ScreenTitle title="Your way out" subtitle={subtitle} />
         {showMap && route ? (
           <div role="group" aria-label="View" className="grid grid-cols-2 gap-2">
             {(["map", "camera"] as const).map((option) => (
@@ -292,46 +277,79 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
                 type="button"
                 aria-pressed={view === option}
                 onClick={() => setView(option)}
-                className={`min-h-11 rounded-xl border-2 border-white px-3 text-lg font-extrabold ${view === option ? "bg-white text-black" : "text-white"}`}
+                className={`${BUTTON.base} min-h-11 text-base ${view === option ? BUTTON.dark : BUTTON.quiet}`}
               >
                 {option === "map" ? "3D map" : "Camera arrows"}
               </button>
             ))}
           </div>
         ) : null}
+        {showMap && route && view === "camera" ? (
+          <ArGuide
+            bearing={legBearing}
+            metres={legMetres}
+            towards={legFloor.id === ground.id ? "the assembly point" : route.stairName}
+            goingDown={goingDown}
+            fallbackTurn={step?.arrow}
+            className={`${MAP_SIZE} rounded-[28px]`}
+          />
+        ) : showMap && route ? (
+          <>
+            <RouteMap3D
+              route={remaining}
+              startFloorId={shownFloor.id}
+              startRoomId={settings.roomId}
+              shownFloorId={mapFloorId}
+              onShowFloor={(floorId) => setPicked({ index, floorId })}
+              exitLabel={route.exitKind === "bombaLift" ? "Wait here · Bomba lift" : undefined}
+              blockedStairIds={emergency.blockedStairIds}
+              className={MAP_SIZE}
+            />
+            <MapHint />
+          </>
+        ) : null}
+      </section>
 
-        <section aria-live="assertive" aria-atomic="true" className="flex items-center gap-3 rounded-2xl border-2 border-white p-3 sm:p-4">
-          {step?.arrow && !isSafe ? <TurnArrow turn={step.arrow} /> : null}
-          <div>
-            {step && route && !isSafe ? (
-              <p className="text-base font-semibold text-yellow-300 sm:text-lg">
-                Step {index + 1} of {route.steps.length}
-              </p>
-            ) : null}
-            <p className="text-xl leading-snug font-bold sm:text-2xl">{instruction}</p>
-          </div>
-        </section>
+      <StepCard
+        live
+        label={isSafe ? "Checked in" : step && route ? `Step ${index + 1} of ${route.steps.length}` : "Fire emergency"}
+        text={instruction}
+        turn={step?.arrow && !isSafe ? step.arrow : undefined}
+      />
 
-        <p aria-live="polite" className={helpStatus || error || offline ? "rounded-2xl bg-white p-3 text-lg font-bold text-black sm:text-xl" : "sr-only"}>
-          {[helpStatus, error, offline ? "Connection lost. Keep following the steps; they work without a connection." : ""].filter(Boolean).join(" ")}
-        </p>
-
-        {showMap ? (
-          <div className="flex flex-1 flex-col gap-3">
-            {primary === "help" ? helpButton : nextButton}
-            <div className="grid grid-cols-2 gap-3">
-              {primary === "help" ? nextButton : helpButton}
-              {repeatButton}
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-1 flex-col gap-3">
-            {nextButton}
-            {repeatButton}
-            {helpButton}
-          </div>
-        )}
+      <div aria-live="polite">
+        {helpStatus || error || offline ? (
+          <Notice tone={error ? "danger" : "info"}>
+            {[helpStatus, error, offline ? "Connection lost. Keep following the steps; they work without a connection." : ""].filter(Boolean).join(" ")}
+          </Notice>
+        ) : null}
       </div>
+
+      {showMap ? (
+        <div className="flex flex-col gap-2">
+          {primary === "help" ? helpButton : nextButton}
+          <div className="grid grid-cols-2 gap-2">
+            {primary === "help" ? nextButton : helpButton}
+            {repeatButton}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {nextButton}
+          {repeatButton}
+          {helpButton}
+        </div>
+      )}
+
+      {route ? (
+        <Summary
+          rows={[
+            [<><StartDot />From</>, `${floor.rooms.find((r) => r.id === settings.roomId)?.name ?? "Your room"}, ${floor.label}`],
+            [<><EndDot />{route.exitKind === "bombaLift" ? "Wait at" : "Exit"}</>, route.stairName],
+            ["Then", "Assembly point, field"],
+          ]}
+        />
+      ) : null}
     </main>
   );
 }

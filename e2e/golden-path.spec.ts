@@ -53,7 +53,7 @@ test("wheelchair user gets help during a fire alarm", async () => {
   await dashboard.getByRole("button", { name: /Simulate fire alarm/ }).click();
   await expect(dashboard.getByText(/FIRE EMERGENCY ACTIVE/)).toBeVisible();
 
-  await expect(student.getByRole("heading", { name: /FIRE EMERGENCY/ })).toBeVisible();
+  await expect(student.getByRole("heading", { name: /Fire emergency/i })).toBeVisible();
   await student.getByRole("button", { name: "I need help" }).click();
   await expect(student.getByText(/Help requested/).first()).toBeVisible();
 
@@ -61,7 +61,7 @@ test("wheelchair user gets help during a fire alarm", async () => {
   await expect(student.getByText(/Ben has accepted/)).toBeVisible();
   await expect(dashboard.getByText("Accepted by Ben")).toBeVisible();
 
-  await responder.getByRole("button", { name: /Mark Aisha as evacuated/ }).click();
+  await responder.getByRole("button", { name: /Mark Aisha/ }).click();
   await expect(dashboard.getByText("Resolved — evacuated")).toBeVisible();
 
   await dashboard.getByRole("button", { name: /End emergency/ }).click();
