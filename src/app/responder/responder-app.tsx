@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { RequestList, roomName } from "@/components/request-list";
 import { BUTTON, MapHint, MAP_SIZE, Notice, RouteMap3D, SCREEN, ScreenHeader, ScreenTitle, Summary } from "@/components/sunsafe-screen";
@@ -44,11 +43,6 @@ export function ResponderApp({ user }: { user: AppUser }) {
       <ScreenHeader
         pill={pill}
         tone={state?.emergency ? "alarm" : offline ? "info" : "calm"}
-        right={
-          <Link href="/" className="text-sm font-semibold text-[#4f6970] underline">
-            Account
-          </Link>
-        }
       />
       <p role="status" className="sr-only">
         {offline ? "No connection. Reconnecting…" : !state ? "Connecting…" : state.emergency ? `Fire emergency — ${floor.building}, ${floor.label}` : "No emergency right now."}

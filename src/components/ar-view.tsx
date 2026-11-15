@@ -91,7 +91,7 @@ export function ArView({ guide, onScan, action, intro, withoutCompass, className
     return () => clearInterval(timer);
   }, [scanning]);
 
-  const frame = `relative isolate overflow-hidden bg-neutral-900 text-white ${className ?? "h-80 w-full"}`;
+  const frame = `relative isolate overflow-hidden bg-[#1e4a55] text-white ${className ?? "h-80 w-full"}`;
 
   if (camera === "off") {
     return (
@@ -99,7 +99,7 @@ export function ArView({ guide, onScan, action, intro, withoutCompass, className
         <p className="text-lg font-bold">{intro}</p>
         <button
           type="button"
-          className="min-h-14 rounded-xl bg-yellow-300 px-5 text-xl font-extrabold text-black"
+          className="min-h-14 rounded-2xl bg-[#ffd84d] px-5 text-xl font-extrabold text-[#3d2c00]"
           onClick={() => {
             // Both are asked for from this tap: iPhones refuse the compass otherwise.
             void start();

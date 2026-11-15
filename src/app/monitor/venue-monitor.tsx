@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ScreenHeader } from "@/components/sunsafe-screen";
 import { useState } from "react";
 import { post, secondsSince, usePolled } from "@/lib/client/live";
 import type { VenueAction, VenueBoard, VenueStatus } from "@/lib/validation/venues";
@@ -19,7 +20,7 @@ const isWaiting = (venue: VenueStatus) => venue.alert !== null && !venue.alert.a
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border-2 border-black p-3 sm:p-4">
+    <div className="rounded-2xl bg-[#eef7f4] p-3 sm:p-4">
       <p className="text-3xl font-extrabold sm:text-4xl">{value}</p>
       <p>{label}</p>
     </div>
@@ -35,12 +36,12 @@ function Cctv({ venue }: { venue: VenueStatus }) {
       <img
         src={CCTV_URL_TEMPLATE.replace("{venue}", encodeURIComponent(venue.id))}
         alt={`Live CCTV of ${venue.name}`}
-        className="aspect-video w-full rounded-lg bg-black object-cover"
+        className="aspect-video w-full rounded-2xl bg-black object-cover"
       />
     );
   }
   return (
-    <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-lg bg-neutral-900 p-3 text-center font-mono text-sm text-neutral-200">
+    <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-2xl bg-neutral-900 p-3 text-center font-mono text-sm text-neutral-200">
       <p className="font-bold">CAM {venue.name.toUpperCase()}</p>
       <p>No camera connected in this demo.</p>
       <p className="text-neutral-400">Set NEXT_PUBLIC_CCTV_URL_TEMPLATE to show the live feed here.</p>
@@ -62,16 +63,16 @@ function VenueCard({ venue, act }: { venue: VenueStatus; act: (venueId: string, 
   const [showCamera, setShowCamera] = useState(false);
   const alert = venue.alert;
   const tone = !alert
-    ? "border-black"
+    ? "border-[#cfe0dc]"
     : alert.cleared
-      ? "border-green-700 bg-green-50"
+      ? "border-[#9ccfbd] bg-[#eef7f4]"
       : alert.acknowledged
-        ? "border-amber-600 bg-amber-50"
-        : "border-red-700 bg-red-50";
-  const button = "min-h-11 rounded-lg px-3 font-bold";
+        ? "border-[#f5c451] bg-[#fff4d6]"
+        : "border-[#e7a39d] bg-[#fde8e7]";
+  const button = "min-h-11 rounded-2xl px-3 font-bold";
 
   return (
-    <li className={`flex flex-col gap-2 rounded-xl border-2 p-3 sm:p-4 ${tone}`}>
+    <li className={`flex flex-col gap-2 rounded-2xl border-2 p-3 sm:p-4 ${tone}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-xl font-bold">{venue.name}</h3>
         <p>
@@ -93,15 +94,15 @@ function VenueCard({ venue, act }: { venue: VenueStatus; act: (venueId: string, 
 
       {showCamera ? <Cctv venue={venue} /> : null}
       <div className="flex flex-wrap gap-2">
-        <button type="button" aria-expanded={showCamera} onClick={() => setShowCamera(!showCamera)} className={`${button} border-2 border-black`}>
+        <button type="button" aria-expanded={showCamera} onClick={() => setShowCamera(!showCamera)} className={`${button} border-2 border-[#cfe0dc]`}>
           {showCamera ? "Hide CCTV" : "View CCTV"}
         </button>
         {alert ? (
           <>
-            <button type="button" onClick={() => act(venue.id, "siren")} className={`${button} bg-red-800 text-white`}>
+            <button type="button" onClick={() => act(venue.id, "siren")} className={`${button} bg-[#c62828] text-white`}>
               Still occupied: repeat siren
             </button>
-            <button type="button" onClick={() => act(venue.id, alert.cleared ? "occupied" : "clear")} className={`${button} border-2 border-black`}>
+            <button type="button" onClick={() => act(venue.id, alert.cleared ? "occupied" : "clear")} className={`${button} border-2 border-[#cfe0dc]`}>
               {alert.cleared ? "Undo: not empty" : "Room is empty"}
             </button>
           </>
@@ -128,12 +129,13 @@ export function VenueMonitor({ user }: { user: AppUser }) {
   const inUse = all.filter((v) => v.session !== null);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-3 text-base sm:gap-5 sm:p-5 sm:text-lg">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 bg-white px-3 pt-3 pb-10 text-base text-[#17323a] sm:gap-5 sm:px-5 sm:text-lg">
+      <ScreenHeader pill={alarm ? "Fire alarm active" : offline ? "Offline" : "No emergency"} tone={alarm ? "alarm" : offline ? "info" : "calm"} />
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">SunSafe venue monitor</h1>
-          <p className="text-base">
-            {user.name} · disaster recovery team · <Link href="/" className="underline">Account</Link>
+          <h1 className="text-[28px] leading-tight font-extrabold">Venue monitor</h1>
+          <p className="text-[15px] text-[#4f6970]">
+            {user.name} · disaster recovery team
           </p>
           <p role="status">
             {offline
@@ -145,11 +147,11 @@ export function VenueMonitor({ user }: { user: AppUser }) {
                   : "No active emergency. Showing who is in each room now."}
           </p>
         </div>
-        <Link href="/dashboard" className="flex min-h-14 w-full items-center justify-center rounded-xl border-2 border-black px-6 text-xl font-bold sm:w-auto">
+        <Link href="/dashboard" className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#ffd84d] px-6 text-xl font-extrabold text-[#3d2c00] sm:w-auto">
           {alarm ? "Control dashboard" : "Trigger alarm on the dashboard"}
         </Link>
       </header>
-      {error ? <p role="alert" className="font-semibold text-red-800">{error}</p> : null}
+      {error ? <p role="alert" className="font-semibold text-[#8f1d14]">{error}</p> : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Rooms in use now" value={inUse.length} />
@@ -165,7 +167,7 @@ export function VenueMonitor({ user }: { user: AppUser }) {
             type="button"
             aria-pressed={filter === option.id}
             onClick={() => setFilter(option.id)}
-            className={`min-h-11 rounded-lg border-2 border-black px-4 font-bold ${filter === option.id ? "bg-black text-white" : ""}`}
+            className={`min-h-11 rounded-2xl border-2 px-4 font-bold ${filter === option.id ? "border-[#17323a] bg-[#17323a] text-white" : "border-[#9ccfbd] bg-[#eef7f4]"}`}
           >
             {option.label}
           </button>

@@ -29,7 +29,7 @@ export function LocationForm({ floor, user, alarm, onSave }: { floor: Floor; use
 
   return (
     <main className={`${SCREEN} text-lg`}>
-      <ScreenHeader pill={alarm ? "Fire emergency" : "Where are you?"} tone={alarm ? "alarm" : "info"} />
+      <ScreenHeader pill={alarm ? "Fire emergency" : "Where are you?"} tone={alarm ? "alarm" : "info"} nav={!alarm} />
       {alarm ? (
         <p role="alert" className="rounded-2xl bg-[#c62828] p-4 text-2xl font-extrabold text-white">
           FIRE EMERGENCY. Tell us where you are to get your way out.

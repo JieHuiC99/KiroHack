@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { ScreenHeader } from "@/components/sunsafe-screen";
 import { useState } from "react";
 import { FloorMap3D } from "@/components/floor-map-3d";
 import { RequestList, toPins } from "@/components/request-list";
@@ -10,7 +10,7 @@ import type { AppUser } from "@/lib/roles";
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border-2 border-black p-4">
+    <div className="rounded-2xl bg-[#eef7f4] p-4">
       <p className="text-3xl font-extrabold sm:text-4xl">{value}</p>
       <p>{label}</p>
     </div>
@@ -33,12 +33,13 @@ export function Dashboard({ user }: { user: AppUser }) {
   const needsMarshal = requests.filter((r) => r.status === "pending" && r.escalationLevel === 2);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-3 text-base sm:gap-5 sm:p-5 sm:text-lg">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 bg-white px-3 pt-3 pb-10 text-base text-[#17323a] sm:gap-5 sm:px-5 sm:text-lg">
+      <ScreenHeader pill={emergency ? "Fire alarm active" : offline ? "Offline" : "No emergency"} tone={emergency ? "alarm" : offline ? "info" : "calm"} />
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">SunSafe control dashboard</h1>
-          <p className="text-base">
-            {user.name} · disaster recovery team · <Link href="/monitor" className="underline">Venue monitor</Link> · <Link href="/" className="underline">Account</Link>
+          <h1 className="text-[28px] leading-tight font-extrabold">Control dashboard</h1>
+          <p className="text-[15px] text-[#4f6970]">
+            {user.name} · disaster recovery team
           </p>
           <p role="status">
             {offline
@@ -51,23 +52,23 @@ export function Dashboard({ user }: { user: AppUser }) {
           </p>
         </div>
         {emergency ? (
-          <button type="button" className="min-h-14 w-full rounded-xl border-2 border-black px-6 text-xl font-bold sm:w-auto" onClick={() => send({ action: "end" })}>
+          <button type="button" className="min-h-14 w-full rounded-2xl border-2 border-[#9ccfbd] bg-[#eef7f4] px-6 text-xl font-extrabold sm:w-auto" onClick={() => send({ action: "end" })}>
             End emergency (all clear)
           </button>
         ) : (
           <button
             type="button"
-            className="min-h-14 w-full rounded-xl bg-red-800 px-6 text-xl font-bold text-white sm:w-auto"
+            className="min-h-14 w-full rounded-2xl bg-[#c62828] px-6 text-xl font-bold text-white sm:w-auto"
             onClick={() => send({ action: "activate", floorId: level3.id })}
           >
             Simulate fire alarm — {level3.label}
           </button>
         )}
       </header>
-      {error ? <p role="alert" className="font-semibold text-red-800">{error}</p> : null}
+      {error ? <p role="alert" className="font-semibold text-[#8f1d14]">{error}</p> : null}
 
       {needsMarshal.length > 0 ? (
-        <p role="alert" className="rounded-xl bg-red-800 p-4 text-xl font-bold text-white">
+        <p role="alert" className="rounded-2xl bg-[#c62828] p-4 text-xl font-bold text-white">
           ESCALATED TO FLOOR MARSHAL: {needsMarshal.map((r) => r.personName).join(", ")} still {needsMarshal.length === 1 ? "has" : "have"} no helper. Send
           someone now.
         </p>
@@ -80,21 +81,21 @@ export function Dashboard({ user }: { user: AppUser }) {
             pins={toPins(requests.filter((r) => r.status !== "resolved"))}
             blockedStairIds={emergency?.blockedStairIds ?? []}
             alarm={emergency !== null}
-            className="h-[55dvh] min-h-72 w-full overflow-hidden rounded-xl border sm:h-[34rem]"
+            className="h-[55dvh] min-h-72 w-full overflow-hidden rounded-[28px] sm:h-[34rem]"
           />
           <p className="text-base">
             One floor at a time: use the floor buttons to switch level. Drag to rotate, scroll or pinch to zoom. Green blocks are the emergency staircases, red blocks with a white cross are the Bomba lifts (for people who cannot use stairs), pins are
             people waiting for help, and the green field on the ground floor is the assembly point.
           </p>
 
-          <fieldset disabled={!emergency} className="rounded-xl border-2 border-black p-4 disabled:opacity-50">
+          <fieldset disabled={!emergency} className="rounded-2xl border-2 border-[#cfe0dc] p-4 disabled:opacity-50">
             <legend className="px-2 font-bold">Blocked staircases and Bomba lifts (routes update on every phone)</legend>
             <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
               {[...staircases(floor), ...bombaLifts(floor)].map((stair) => (
                 <label key={stair.id} className="flex min-h-11 cursor-pointer items-center gap-3">
                   <input
                     type="checkbox"
-                    className="size-5"
+                    className="size-5 accent-[#1e4a55]"
                     checked={emergency?.blockedStairIds.includes(stair.id) ?? false}
                     onChange={(event) => send({ action: "block-stair", stairId: stair.id, blocked: event.target.checked })}
                   />

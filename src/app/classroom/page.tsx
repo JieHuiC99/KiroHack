@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ScreenHeader } from "@/components/sunsafe-screen";
 import { venueGroups, venues } from "@/lib/venues";
 
 export const metadata: Metadata = { title: "SunSafe — Classroom alert" };
@@ -7,8 +8,9 @@ export const metadata: Metadata = { title: "SunSafe — Classroom alert" };
 /** Pick which room this computer is in. Done once per classroom PC; the startup agent then opens it directly. */
 export default function ClassroomPicker() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-6 p-4 text-lg sm:p-6 sm:text-xl">
-      <h1 className="text-3xl font-bold">Classroom alert</h1>
+    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-5 bg-white px-3 pt-3 pb-10 text-lg text-[#17323a] sm:px-6">
+      <ScreenHeader account={false} nav={false} pill="Classroom computer" tone="info" />
+      <h1 className="text-[28px] leading-tight font-extrabold">Classroom alert</h1>
       <p>Which room is this computer in? It will show a full-screen alert with a siren when the emergency team triggers the fire alarm.</p>
       {venueGroups.map((group) => (
         <section key={group}>
@@ -20,7 +22,7 @@ export default function ClassroomPicker() {
                 <li key={venue.id}>
                   <Link
                     href={`/classroom/${venue.id}`}
-                    className="block min-h-14 rounded-xl border-2 border-black p-4 font-bold hover:bg-black hover:text-white focus-visible:bg-black focus-visible:text-white"
+                    className="block min-h-14 rounded-2xl border-2 border-[#cfe0dc] p-4 font-bold hover:border-[#1e4a55] hover:bg-[#eef7f4] focus-visible:border-[#1e4a55] focus-visible:bg-[#eef7f4]"
                   >
                     {venue.name} <span className="font-normal">· {venue.level}</span>
                   </Link>

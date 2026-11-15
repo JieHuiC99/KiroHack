@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArGuide } from "@/components/ar-guide";
 import { BUTTON, EndDot, MapHint, MAP_SIZE, Notice, RouteMap3D, SCREEN, ScreenHeader, ScreenTitle, StartDot, StepCard, Summary } from "@/components/sunsafe-screen";
@@ -22,6 +21,7 @@ export function StudentApp({ user }: { user: AppUser }) {
   const { state, offline } = useLiveState();
   // Asked on every visit and kept in memory only: never in the phone's storage, never in the account.
   const [place, setPlace] = useState<Place | null>(null);
+  const [practising, setPractising] = useState(false);
 
   // Earlier versions remembered the room on the phone. Forget it.
   useEffect(() => window.localStorage.removeItem("safeway.settings"), []);
@@ -32,13 +32,18 @@ export function StudentApp({ user }: { user: AppUser }) {
   if (state?.emergency) {
     return <EmergencyScreen key={state.emergency.id} settings={settings} state={state} emergency={state.emergency} offline={offline} />;
   }
-  return <Standby settings={settings} offline={offline} loading={!state} onMove={() => setPlace(null)} />;
+  if (practising && state) {
+    // The same step-by-step screen as in a real alarm, fed a pretend alarm: nothing is sent to the server.
+    const drill: Emergency = { id: "practice", type: "fire", floorId: level3.id, startedAt: state.serverTime, blockedStairIds: [] };
+    return <EmergencyScreen settings={settings} state={{ ...state, requests: [], safeNames: [], safeIds: [] }} emergency={drill} offline={offline} onPracticeDone={() => setPractising(false)} />;
+  }
+  return <Standby settings={settings} offline={offline} loading={!state} onMove={() => setPlace(null)} onPractise={() => setPractising(true)} />;
 }
 
 /** The map is the main view for everyone who can see it; blind users get the audio-first layout. */
 const usesMap = (settings: Settings) => settings.profile !== "blind";
 
-function Standby({ settings, offline, loading, onMove }: { settings: Settings; offline: boolean; loading: boolean; onMove: () => void }) {
+function Standby({ settings, offline, loading, onMove, onPractise }: { settings: Settings; offline: boolean; loading: boolean; onMove: () => void; onPractise: () => void }) {
   const room = level3.rooms.find((r) => r.id === settings.roomId);
   const route = findEvacuationRoute(level3.id, settings.roomId, { needsAssistance: settings.profile === "wheelchair" });
   const goesOutside = route?.path.some((p) => p.floorId === ground.id) ?? false;
@@ -105,13 +110,13 @@ function Standby({ settings, offline, loading, onMove }: { settings: Settings; o
         >
           Test voice and vibration
         </button>
-        <button type="button" className={`${BUTTON.base} ${BUTTON.quiet} text-lg`} onClick={onMove}>
-          I have moved: change my room
+        <button type="button" className={`${BUTTON.base} ${BUTTON.primary} text-lg`} disabled={!route || loading} onClick={onPractise}>
+          {route ? `Walk me through it: ${route.steps.length} steps, read aloud` : "No route to practise"}
         </button>
       </div>
-      <Link href="/" className="self-start px-1 text-[15px] font-semibold text-[#4f6970] underline">
-        Account and sign out
-      </Link>
+      <button type="button" className="self-start px-1 text-[15px] font-semibold text-[#4f6970] underline" onClick={onMove}>
+        I have moved: change my room
+      </button>
     </main>
   );
 }
@@ -128,7 +133,19 @@ function helpStatusText(request: HelpRequest | undefined) {
 const BIG = `${BUTTON.base} min-h-[12dvh] text-2xl`;
 const SMALL = `${BUTTON.base} text-lg`;
 
-function EmergencyScreen({ settings, state, emergency, offline }: { settings: Settings; state: LiveState; emergency: Emergency; offline: boolean }) {
+type EmergencyProps = {
+  settings: Settings;
+  state: LiveState;
+  emergency: Emergency;
+  offline: boolean;
+  /** Set for a practice run: every step is read aloud, nothing is sent, and this is called at the end. */
+  onPracticeDone?: () => void;
+};
+
+function EmergencyScreen({ settings, state, emergency, offline, onPracticeDone }: EmergencyProps) {
+  const practice = onPracticeDone !== undefined;
+  // A practice run always talks: hearing the steps is the point of it.
+  const voice = settings.voice || practice;
   const floor = getFloor(emergency.floorId) ?? level3;
   const myRequest = state.requests.findLast((r) => r.personId === settings.id);
   const isSafe = state.safeIds.includes(settings.id);
@@ -154,7 +171,9 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
       : `Fire emergency on ${floor.label}. Do not use the lift. ${rerouted ? `A staircase is blocked. ` : ""}${start} to ${theStair(route.stairName)}, about ${route.metres} metres.`;
 
   const step = route && index >= 0 ? route.steps[index] : undefined;
-  const instruction = isSafe ? "You are marked safe. Stay at the assembly point until the all clear." : (step?.text ?? intro);
+  const instruction = isSafe
+    ? "You are marked safe. Stay at the assembly point until the all clear."
+    : (step?.text ?? (practice ? intro.replace(/^Fire emergency( on [^.]+)?\./, "Practice run. This is what you will hear in a real alarm.") : intro));
   const helpStatus = helpStatusText(myRequest);
   const atLastStep = route !== null && index === route.steps.length - 1;
   const helpIsOpen = myRequest !== undefined && myRequest.status !== "resolved";
@@ -176,19 +195,19 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const [picked, setPicked] = useState({ index, floorId: shownFloor.id });
   const mapFloorId = picked.index === index ? picked.floorId : shownFloor.id;
 
-  // The alarm itself: one long vibration when this screen first appears.
-  useEffect(() => vibrate(VIBRATION.alarm), []);
+  // The alarm itself: one long vibration when this screen first appears (a short one for a practice run).
+  useEffect(() => vibrate(practice ? VIBRATION.update : VIBRATION.alarm), [practice]);
 
   // Screen readers announce the aria-live regions below; this is the app's own voice for everyone else.
   useEffect(() => {
-    if (settings.voice) speak(instruction);
-  }, [instruction, settings.voice]);
+    if (voice) speak(instruction);
+  }, [instruction, voice]);
 
   useEffect(() => {
     if (!helpStatus) return;
     vibrate(VIBRATION.update);
-    if (settings.voice) speak(helpStatus);
-  }, [helpStatus, settings.voice]);
+    if (voice) speak(helpStatus);
+  }, [helpStatus, voice]);
 
   function repeat() {
     vibrate(step ? VIBRATION[step.cue] : VIBRATION.update);
@@ -199,6 +218,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   async function next() {
     if (!route) return;
     if (atLastStep) {
+      if (practice) return onPracticeDone();
       const result = await post("/api/checkin", {});
       setError(result.error ?? "");
       return;
@@ -210,6 +230,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
 
   async function askForHelp() {
     if (helpIsOpen) return repeat();
+    if (practice) return speak("This is a practice run, so no helper is called. In a real alarm, this button sends a helper to you.");
     const result = await post("/api/help", { roomId: settings.roomId });
     setError(result.error ?? "");
   }
@@ -217,9 +238,11 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const nextLabel = !route
     ? "No route available"
     : atLastStep
-      ? waitingHere
-        ? "Wait here for your helper"
-        : "I am safe at the assembly point"
+      ? practice
+        ? "Finish practice"
+        : waitingHere
+          ? "Wait here for your helper"
+          : "I am safe at the assembly point"
       : index === -1
         ? "Start: next step"
         : waitingHere
@@ -242,7 +265,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
       key="next"
       type="button"
       onClick={next}
-      disabled={!route || isSafe || (atLastStep && waitingHere)}
+      disabled={!route || isSafe || (atLastStep && waitingHere && !practice)}
       className={`${size("next")} ${BUTTON.primary}`}
     >
       {nextLabel}
@@ -257,15 +280,26 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const subtitle = isSafe
     ? "You're checked in at the assembly point."
     : showMap && route
-      ? route.exitKind === "bombaLift"
+      ? route.exitKind === "bombaLift" && shownFloor.id === floor.id
         ? "Go to the Bomba lift and wait there. A helper will take you down."
         : "Follow the orange line and the white arrows to the exit."
       : "Listen to each step, then press Next step.";
 
   return (
     <main className={SCREEN}>
-      <ScreenHeader pill={`Fire alarm · ${floor.label}`} tone="alarm" />
-      <h2 className="sr-only">Fire emergency on {floor.label}</h2>
+      <ScreenHeader
+        pill={practice ? "Practice run · no alarm" : `Fire alarm · ${floor.label}`}
+        tone={practice ? "info" : "alarm"}
+        nav={practice}
+        right={
+          practice ? (
+            <button type="button" className="text-sm font-semibold text-[#4f6970] underline" onClick={onPracticeDone}>
+              Stop
+            </button>
+          ) : undefined
+        }
+      />
+      <h2 className="sr-only">{practice ? "Practice run" : `Fire emergency on ${floor.label}`}</h2>
 
       <section className="flex flex-col gap-2">
         <ScreenTitle title="Your way out" subtitle={subtitle} />
@@ -301,7 +335,8 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
               startRoomId={settings.roomId}
               shownFloorId={mapFloorId}
               onShowFloor={(floorId) => setPicked({ index, floorId })}
-              exitLabel={route.exitKind === "bombaLift" ? "Wait here · Bomba lift" : undefined}
+              // The Bomba lift is the end only on the alarm floor; after riding down the route carries on to the field.
+              exitLabel={route.exitKind === "bombaLift" && shownFloor.id === floor.id ? "Wait here · Bomba lift" : undefined}
               blockedStairIds={emergency.blockedStairIds}
               className={MAP_SIZE}
             />
@@ -312,7 +347,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
 
       <StepCard
         live
-        label={isSafe ? "Checked in" : step && route ? `Step ${index + 1} of ${route.steps.length}` : "Fire emergency"}
+        label={isSafe ? "Checked in" : step && route ? `Step ${index + 1} of ${route.steps.length}` : practice ? "Practice run" : "Fire emergency"}
         text={instruction}
         turn={step?.arrow && !isSafe ? step.arrow : undefined}
       />
