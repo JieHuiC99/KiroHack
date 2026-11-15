@@ -20,12 +20,12 @@ export class NoActiveEmergencyError extends Error {
   }
 }
 
-async function activeEmergency() {
+export async function activeEmergency() {
   const db = await getDb();
   return db.getRepository(Emergency).findOne({ where: { status: "active" }, order: { startedAt: "DESC" } });
 }
 
-async function requireActiveEmergency() {
+export async function requireActiveEmergency() {
   const emergency = await activeEmergency();
   if (!emergency) throw new NoActiveEmergencyError();
   return emergency;

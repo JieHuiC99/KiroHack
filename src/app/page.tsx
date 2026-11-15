@@ -4,6 +4,8 @@ const SCREENS = [
   { href: "/me", title: "My evacuation", text: "Phone screen for students and staff. Voice, vibration and three big buttons." },
   { href: "/responder", title: "Responder", text: "Phone screen for helpers: accept a request, find the person, mark them evacuated." },
   { href: "/dashboard", title: "Control dashboard", text: "Trigger the alarm, block staircases, watch requests on the 3D floor map." },
+  { href: "/monitor", title: "Venue monitor", text: "Emergency team: which classrooms have classes now, who has acknowledged the alarm, CCTV, repeat the siren." },
+  { href: "/classroom", title: "Classroom alert", text: "Classroom computer: full-screen alert and siren until someone confirms the room is evacuating." },
 ];
 
 export default function Home() {

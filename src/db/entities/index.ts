@@ -2,6 +2,7 @@
 import { CheckIn } from "./CheckIn";
 import { Emergency } from "./Emergency";
 import { HelpRequest } from "./HelpRequest";
+import { VenueAlert } from "./VenueAlert";
 
-export const entities = [Emergency, HelpRequest, CheckIn];
-export { CheckIn, Emergency, HelpRequest };
+export const entities = [Emergency, HelpRequest, CheckIn, VenueAlert];
+export { CheckIn, Emergency, HelpRequest, VenueAlert };

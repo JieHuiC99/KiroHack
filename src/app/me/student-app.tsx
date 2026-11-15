@@ -5,7 +5,7 @@ import { speak, vibrate, VIBRATION } from "@/lib/client/announce";
 import { post, useLiveState } from "@/lib/client/live";
 import { useStored } from "@/lib/client/stored";
 import { findEvacuationRoute, getFloor, ground, level3 } from "@/lib/floor/building";
-import { theStair } from "@/lib/floor/routing";
+import { remainingPath, theStair } from "@/lib/floor/routing";
 import type { Turn } from "@/lib/floor/types";
 import type { LiveState } from "@/lib/validation/emergency";
 import { SetupForm, type Settings } from "./setup-form";
@@ -66,7 +66,12 @@ function Standby({ settings, offline, loading, onEdit }: { settings: Settings; o
           />
           <p>
             From {room?.name}, {level3.label}: about {route.metres} metres to <strong>{theStair(route.stairName)}</strong>
-            {goesOutside ? `, down ${level3.level} floors, then out to ${ground.assemblyPoint}` : ", where a helper meets you on the landing"}. Drag to rotate,
+            {route.exitKind === "bombaLift"
+              ? `, where a helper takes you down in the Bomba lift and out to ${ground.assemblyPoint}`
+              : goesOutside
+                ? `, down ${level3.level} floors by the emergency staircase, then out to ${ground.assemblyPoint}`
+                : ", where a helper meets you on the landing"}
+            . Never use the ordinary lifts in a fire. Drag to rotate,
             pinch to zoom, and use the floor buttons to look at each level.
           </p>
         </section>
@@ -144,7 +149,9 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const intro = !route
     ? "Fire emergency. Every staircase on this floor is reported blocked. Stay where you are, keep low, and press I need help."
     : settings.profile === "wheelchair"
-      ? `Fire emergency on ${floor.label}. Do not use the lift. Press I need help, then follow the arrows to the landing of ${theStair(route.stairName)}.`
+      ? route.exitKind === "bombaLift"
+        ? `Fire emergency on ${floor.label}. Do not use the ordinary lifts. Press I need help, then follow the arrows to ${theStair(route.stairName)} and wait there for your helper.`
+        : `Fire emergency on ${floor.label}. Do not use the lift. Press I need help, then follow the arrows to the landing of ${theStair(route.stairName)}.`
       : `Fire emergency on ${floor.label}. Do not use the lift. ${rerouted ? `A staircase is blocked. ` : ""}${start} to ${theStair(route.stairName)}, about ${route.metres} metres.`;
 
   const step = route && index >= 0 ? route.steps[index] : undefined;
@@ -153,6 +160,9 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const atLastStep = route !== null && index === route.steps.length - 1;
   const helpIsOpen = myRequest !== undefined && myRequest.status !== "resolved";
   const position = route ? (step?.at ?? route.path[0]) : undefined;
+  // Arrows only for the way still to go: the trail behind the current checkpoint is dropped.
+  const remaining = route && position ? remainingPath(route.path, position) : [];
+  const waitingHere = step?.wait === true;
   // The map shows one floor at a time: the floor the current step is on.
   const shownFloor = getFloor(position?.floorId ?? floor.id) ?? floor;
   const nextFloorId = route && index + 1 < route.steps.length ? route.steps[index + 1].at?.floorId : undefined;
@@ -199,12 +209,14 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
   const nextLabel = !route
     ? "No route available"
     : atLastStep
-      ? needsAssistance
+      ? waitingHere
         ? "Wait here for your helper"
         : "I am safe at the assembly point"
       : index === -1
         ? "Start: next step"
-        : nextFloor
+        : waitingHere
+          ? "My helper is here: continue"
+          : nextFloor
           ? `Continue to ${nextFloor.label}`
           : "Next step";
 
@@ -222,7 +234,7 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
       key="next"
       type="button"
       onClick={next}
-      disabled={!route || isSafe || (atLastStep && needsAssistance)}
+      disabled={!route || isSafe || (atLastStep && waitingHere)}
       className={`${size("next")} bg-yellow-300 text-black disabled:opacity-50`}
     >
       {nextLabel}
@@ -243,9 +255,9 @@ function EmergencyScreen({ settings, state, emergency, offline }: { settings: Se
       {showMap && route ? (
         <FloorMap3D
           floor={floor}
-          route={route.path}
+          route={remaining}
           position={position}
-          focus={route.path}
+          focus={remaining}
           showFloorId={shownFloor.id}
           returnKey={index}
           alarm

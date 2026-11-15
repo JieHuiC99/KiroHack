@@ -58,7 +58,9 @@ export function RequestList({
           <p>{PROFILE_LABEL[request.profile]}</p>
           <p>
             From {roomName(floor, request.roomId)}
-            {request.waitStairId ? ` · waiting at ${roomName(floor, request.waitStairId)} landing` : " · no usable staircase, staying in room"}
+            {request.waitStairId
+              ? ` · waiting at ${roomName(floor, request.waitStairId)}${request.waitStairId.startsWith("stair-") ? " landing" : ""}`
+              : " · no usable exit, staying in room"}
           </p>
           <p className="font-semibold">
             {statusLabel(request)}

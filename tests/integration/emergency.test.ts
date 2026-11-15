@@ -25,7 +25,7 @@ describe("emergency flow (real Postgres)", () => {
   it("takes a help request from pending to accepted to resolved", async () => {
     await activateEmergency("uni-l3");
     const request = await requestHelp(aisha);
-    expect(request.waitStairId).toBe("stair-sw");
+    expect(request.waitStairId).toBe("bomba-w");
 
     expect(await acceptHelp(request.id, "Ben")).toBe(true);
     expect(await acceptHelp(request.id, "Chen")).toBe(false); // already taken
@@ -42,11 +42,11 @@ describe("emergency flow (real Postgres)", () => {
     expect(again.id).toBe(first.id);
   });
 
-  it("sends people to another landing when a staircase is blocked", async () => {
+  it("sends people to the other Bomba lift when theirs is blocked", async () => {
     await activateEmergency("uni-l3");
-    await setStairBlocked("stair-sw", true);
-    expect((await requestHelp(aisha)).waitStairId).toBe("stair-se");
-    expect((await getLiveState()).emergency?.blockedStairIds).toEqual(["stair-sw"]);
+    await setStairBlocked("bomba-w", true);
+    expect((await requestHelp(aisha)).waitStairId).toBe("bomba-e");
+    expect((await getLiveState()).emergency?.blockedStairIds).toEqual(["bomba-w"]);
   });
 
   it("counts each person once at the assembly point", async () => {

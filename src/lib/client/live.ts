@@ -4,18 +4,18 @@ import type { LiveState } from "@/lib/validation/emergency";
 
 const POLL_MS = 1500;
 
-/** Polls /api/state. `undefined` until the first answer arrives. */
-export function useLiveState() {
-  const [state, setState] = useState<LiveState>();
+/** Polls a JSON endpoint. `state` is `undefined` until the first answer arrives. */
+export function usePolled<T>(url: string) {
+  const [state, setState] = useState<T>();
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     let stopped = false;
     async function poll() {
       try {
-        const res = await fetch("/api/state", { cache: "no-store" });
+        const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(String(res.status));
-        const next = (await res.json()) as LiveState;
+        const next = (await res.json()) as T;
         if (!stopped) {
           setState(next);
           setOffline(false);
@@ -30,10 +30,13 @@ export function useLiveState() {
       stopped = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [url]);
 
   return { state, offline };
 }
+
+/** What the phone, responder and dashboard screens poll. */
+export const useLiveState = () => usePolled<LiveState>("/api/state");
 
 export async function post(path: string, body: unknown): Promise<{ error?: string }> {
   try {

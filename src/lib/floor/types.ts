@@ -3,7 +3,12 @@ export type Rect = { x: number; y: number; w: number; h: number };
 /** A point on a particular floor (routes cross floors). */
 export type RoutePoint = Point & { floorId: string };
 
-export type RoomKind = "room" | "office" | "toilet" | "stairs" | "lift";
+/**
+ * `stairs` are the emergency staircases (green on the posted fire plans): the way out for everyone who can walk.
+ * `bombaLift` is the firefighters' lift (red cross on the plans): the way out for people who can't use stairs,
+ * always with a helper or the fire crew. `lift` is an ordinary passenger lift: never used in a fire.
+ */
+export type RoomKind = "room" | "office" | "toilet" | "stairs" | "bombaLift" | "lift";
 
 export type Room = Rect & {
   id: string;
@@ -34,7 +39,7 @@ export type Floor = {
   walkways: { from: Point; to: Point }[];
   /** Ground floor only: the assembly field. */
   field?: Rect;
-  /** Ground floor only: for each staircase id, the walk from the bottom of the stairs to the assembly point. */
+  /** Ground floor only: for each staircase and Bomba lift id, the walk from where it comes out to the assembly point. */
   groundExits?: Record<string, Point[]>;
 };
 
@@ -50,12 +55,16 @@ export type RouteStep = {
   at?: RoutePoint;
   /** Part of the journey: decides what the 3D camera frames. */
   phase?: "floor" | "stairs" | "ground";
+  /** The person stays here until a helper arrives. The screen asks before moving on. */
+  wait?: boolean;
 };
 
 export type Route = {
   fromRoomId: string;
+  /** The exit the route leads to: an emergency staircase, or a Bomba lift for people who can't use stairs. */
   stairId: string;
   stairName: string;
+  exitKind: "stairs" | "bombaLift";
   /** Door → … → staircase door on the starting floor, in that floor's units. */
   points: Point[];
   /** Walking distance to the staircase. */

@@ -41,6 +41,18 @@ function stairs(nw: Rect, sw: Rect, ne: Rect, se: Rect): Room[] {
 }
 const box = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 
+/**
+ * The two Bomba (firefighters') lifts: the end car of the west and east lift banks, marked with a
+ * red cross on the posted fire plans for Levels 1 to 3. Same id on every floor, like the staircases.
+ * On Ground and Mezzanine their position is ASSUMED to be straight below.
+ */
+function bombaLifts(west: Rect, east: Rect): Room[] {
+  return [
+    { id: "bomba-w", name: "West Bomba lift", kind: "bombaLift", ...west },
+    { id: "bomba-e", name: "East Bomba lift", kind: "bombaLift", ...east },
+  ];
+}
+
 export const ground: Floor = {
   id: "uni-g",
   building: BUILDING,
@@ -76,8 +88,9 @@ export const ground: Floor = {
     office(193, 425, 22, 20),
     office(193, 462, 22, 40),
     toilet(700, 328, 50, 55),
-    lift(261, 330, 20, 82),
-    lift(660, 348, 20, 62),
+    lift(261, 330, 20, 62),
+    lift(660, 348, 20, 42),
+    ...bombaLifts(box(261, 392, 20, 20), box(660, 390, 20, 20)),
     lift(318, 302, 20, 28),
     ...stairs(box(170, 93, 30, 22), box(186, 388, 30, 22), box(720, 90, 30, 22), box(722, 385, 30, 22)),
   ],
@@ -106,6 +119,18 @@ export const ground: Floor = {
       { x: 735, y: 101 },
       { x: 820, y: 101 },
       { x: 820, y: 640 },
+      { x: 500, y: 640 },
+    ],
+    "bomba-w": [
+      { x: 271, y: 402 },
+      { x: 271, y: 418 },
+      { x: 500, y: 418 },
+      { x: 500, y: 640 },
+    ],
+    "bomba-e": [
+      { x: 670, y: 400 },
+      { x: 670, y: 418 },
+      { x: 500, y: 418 },
       { x: 500, y: 640 },
     ],
   },
@@ -147,8 +172,9 @@ export const mezzanine: Floor = {
     office(135, 547, 52, 30),
     toilet(135, 478, 47, 69),
     toilet(743, 384, 60, 66),
-    lift(217, 381, 24, 98),
-    lift(694, 409, 23, 73),
+    lift(217, 381, 24, 74),
+    lift(694, 409, 23, 49),
+    ...bombaLifts(box(217, 455, 24, 24), box(694, 458, 23, 24)),
     lift(286, 349, 24, 34),
     ...stairs(box(112, 99, 34, 23), box(127, 453, 34, 23), box(770, 101, 34, 23), box(769, 455, 34, 23)),
   ],
@@ -188,8 +214,9 @@ export const level1: Floor = {
     office(138, 301, 140, 43),
     toilet(170, 367, 54, 66),
     toilet(781, 366, 60, 67),
-    lift(259, 367, 24, 98),
-    lift(733, 392, 22, 73),
+    lift(259, 367, 24, 74),
+    lift(733, 392, 22, 49),
+    ...bombaLifts(box(259, 441, 24, 24), box(733, 441, 22, 24)),
     lift(320, 334, 32, 34),
     ...stairs(box(153, 88, 34, 22), box(170, 438, 34, 23), box(807, 86, 33, 22), box(807, 437, 33, 23)),
   ],
@@ -233,8 +260,9 @@ export const level2: Floor = {
     office(250, 297, 65, 47),
     toilet(177, 363, 53, 67),
     toilet(788, 362, 59, 68),
-    lift(265, 363, 25, 98),
-    lift(739, 388, 23, 72),
+    lift(265, 363, 25, 74),
+    lift(739, 388, 23, 48),
+    ...bombaLifts(box(265, 437, 25, 24), box(739, 436, 23, 24)),
     lift(333, 332, 24, 33),
     ...stairs(box(160, 84, 34, 24), box(177, 435, 34, 23), box(813, 83, 34, 23), box(813, 434, 34, 23)),
   ],
