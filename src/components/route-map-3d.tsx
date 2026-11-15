@@ -194,7 +194,12 @@ function buildRoute(shown: Floor, full: RoutePoint[], startFloorId: string, turn
   }
 
   if (pts.length === 1) {
-    labels.push({ id: "pass", text: "Keep going down", tone: "stairs", at: start.clone().setY(1) });
+    // One point left: either a floor you only pass through on the stairs, or you have arrived.
+    labels.push(
+      isLastFloor
+        ? { id: "pass", text: "You have arrived", tone: "exit", at: start.clone().setY(4.5) }
+        : { id: "pass", text: "Keep going down", tone: "stairs", at: start.clone().setY(1) },
+    );
     const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 2.2, 32), new THREE.MeshBasicMaterial({ color: COLOURS.route, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.copy(start).setY(0.4);

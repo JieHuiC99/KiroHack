@@ -5,7 +5,7 @@ import { getLandmarkRoute } from "@/lib/landmark-routes";
 import { requirePageUser } from "@/lib/session";
 import { LandmarkGuide } from "./landmark-guide";
 
-export const metadata: Metadata = { title: "SafeWay — Camera route" };
+export const metadata: Metadata = { title: "SunSafe — Camera route" };
 
 /** Reads the session and the address (a wall QR code opens it as ?at=<checkpoint>), so it renders per request. */
 async function Gate({ params, searchParams }: PageProps<"/guide/[routeId]">) {

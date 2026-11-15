@@ -1,9 +1,9 @@
 "use client";
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { TURN_DEGREES, TURN_TEXT } from "@/components/ar-guide";
 import { ArView, type ArGuidance } from "@/components/ar-view";
+import { BUTTON, EndDot, MAP_SIZE, Notice, SCREEN, ScreenHeader, ScreenTitle, StartDot, StepCard, Summary } from "@/components/sunsafe-screen";
 import { speak, vibrate, VIBRATION } from "@/lib/client/announce";
 import { post } from "@/lib/client/live";
 import { useStored } from "@/lib/client/stored";
@@ -57,66 +57,67 @@ export function LandmarkGuide({ route, user, startAt }: { route: LandmarkRoute; 
   }
 
   return (
-    <main className="flex min-h-dvh flex-col bg-black text-white md:grid md:h-dvh md:grid-cols-[3fr_2fr] md:grid-rows-[auto_minmax(0,1fr)]">
-      <h1 className="p-3 text-center text-lg font-extrabold tracking-wide text-yellow-300 sm:text-xl md:col-span-2">
-        {route.from.toUpperCase()} → {route.to.toUpperCase()}
-      </h1>
+    <main className={SCREEN}>
+      <ScreenHeader pill={`Checkpoint ${index + 1} of ${checkpoints.length}`} tone="info" home="/me" />
 
-      <ArView
-        className="h-[42dvh] min-h-64 w-full md:h-full"
-        intro="Point the camera at the QR code beside each landmark. An arrow on the floor shows the way."
-        withoutCompass="arrow shows the turn, standing facing the landmark"
-        guide={guide}
-        onScan={(text, heading) => {
-          const target = checkpointFromScan(route, text);
-          if (target >= 0) arriveAt(target, heading);
-        }}
-        action={(heading) => (turn !== null && facing === null ? { label: `Facing "${here.title}"? Press to lock the arrow`, run: () => setFacing(heading) } : null)}
-      />
+      <section className="flex flex-col gap-2">
+        <ScreenTitle title={`To ${route.to}`} subtitle={`From ${route.from}. Scan the QR code beside each landmark, or press the button when you reach it.`} />
+        <ArView
+          className={`${MAP_SIZE} rounded-[28px]`}
+          intro="Point the camera at the QR code beside each landmark. An arrow on the floor shows the way."
+          withoutCompass="arrow shows the turn, standing facing the landmark"
+          guide={guide}
+          onScan={(text, heading) => {
+            const target = checkpointFromScan(route, text);
+            if (target >= 0) arriveAt(target, heading);
+          }}
+          action={(heading) => (turn !== null && facing === null ? { label: `Facing "${here.title}"? Press to lock the arrow`, run: () => setFacing(heading) } : null)}
+        />
+      </section>
 
-      <div className="flex flex-1 flex-col gap-3 p-3 md:overflow-y-auto">
-        <section aria-live="assertive" aria-atomic="true" className="rounded-2xl border-2 border-white p-3 sm:p-4">
-          <p className="text-base font-semibold text-yellow-300 sm:text-lg">
-            Checkpoint {index + 1} of {checkpoints.length} · {here.level} · {here.title}
-          </p>
-          <p className="text-xl leading-snug font-bold sm:text-2xl">{here.instruction}</p>
-        </section>
+      <StepCard live label={`${here.level} · ${here.title}`} text={here.instruction} turn={turn ?? undefined} />
 
+      {next ? (
+        <figure className="flex items-center gap-3 rounded-2xl bg-[#eef7f4] p-2">
+          <Image src={next.image} alt="" width={640} height={850} unoptimized loading="eager" className="h-28 w-24 shrink-0 rounded-xl object-cover" />
+          <figcaption className="text-[15px]">
+            <span className="block font-bold">Next, look for: {next.title}</span>
+            <span className="block text-[#4f6970]">{next.look} Scan the QR code beside it.</span>
+          </figcaption>
+        </figure>
+      ) : null}
+
+      <div aria-live="polite">
+        {error || checkedIn ? <Notice tone={error ? "danger" : "info"}>{error || "You are marked safe. Stay in the Green zone until the all clear."}</Notice> : null}
+      </div>
+
+      <div className="flex flex-col gap-2">
         {next ? (
-          <figure className="flex items-center gap-3 rounded-2xl bg-white p-2 text-black">
-            <Image src={next.image} alt="" width={640} height={850} unoptimized loading="eager" className="h-28 w-24 shrink-0 rounded-lg object-cover" />
-            <figcaption>
-              <span className="block text-base font-bold">Next, look for: {next.title}</span>
-              <span className="block text-base">{next.look} Scan the QR code beside it.</span>
-            </figcaption>
-          </figure>
-        ) : null}
-
-        <p aria-live="polite" className={error || checkedIn ? "rounded-2xl bg-white p-3 text-lg font-bold text-black" : "sr-only"}>
-          {error || (checkedIn ? "You are marked safe. Stay in the Green zone until the all clear." : "")}
-        </p>
-
-        {next ? (
-          <button type="button" onClick={() => arriveAt(index + 1, null)} className="min-h-[12dvh] flex-1 rounded-2xl bg-yellow-300 p-4 text-2xl font-extrabold text-black sm:text-3xl">
+          <button type="button" onClick={() => arriveAt(index + 1, null)} className={`${BUTTON.base} ${BUTTON.primary} min-h-[12dvh] text-2xl`}>
             I&apos;ve reached: {next.title}
           </button>
         ) : (
-          <button type="button" onClick={checkIn} disabled={checkedIn} className="min-h-[12dvh] flex-1 rounded-2xl bg-yellow-300 p-4 text-2xl font-extrabold text-black disabled:opacity-50 sm:text-3xl">
+          <button type="button" onClick={checkIn} disabled={checkedIn} className={`${BUTTON.base} ${BUTTON.primary} min-h-[12dvh] text-2xl`}>
             I am safe at the Green zone
           </button>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <button type="button" onClick={() => arriveAt(index - 1, null)} disabled={index === 0} className="min-h-14 rounded-2xl border-2 border-white p-3 text-lg font-extrabold disabled:opacity-40">
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => arriveAt(index - 1, null)} disabled={index === 0} className={`${BUTTON.base} ${BUTTON.quiet} text-lg`}>
             Back one
           </button>
-          <button type="button" onClick={() => speak(here.instruction)} className="min-h-14 rounded-2xl bg-white p-3 text-lg font-extrabold text-black">
+          <button type="button" onClick={() => speak(here.instruction)} className={`${BUTTON.base} ${BUTTON.quiet} text-lg`}>
             Repeat
           </button>
         </div>
-        <Link href="/me" className="self-center underline">
-          Back to my evacuation screen
-        </Link>
       </div>
+
+      <Summary
+        rows={[
+          [<><StartDot />From</>, route.from],
+          [<><EndDot />To</>, route.to.replace(/^the /, "The ")],
+          ["Checkpoints", `${checkpoints.length}, each with a QR code`],
+        ]}
+      />
     </main>
   );
 }

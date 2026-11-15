@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BUTTON, EndDot, MapHint, MAP_SIZE, Notice, RouteMap3D, SCREEN, ScreenHeader, ScreenTitle, StartDot, Summary } from "@/components/sunsafe-screen";
+import { BUTTON, EndDot, FIELD, MapHint, MAP_SIZE, Notice, RouteMap3D, SCREEN, ScreenHeader, ScreenTitle, StartDot, Summary } from "@/components/sunsafe-screen";
 import { speak } from "@/lib/client/announce";
 import { findEvacuationRoute, level3 } from "@/lib/floor/building";
 import { post, usePolled } from "@/lib/client/live";
@@ -100,9 +100,10 @@ export function ClassroomAlert({ venue }: { venue: Venue }) {
   if (!ready) return null;
   if (!deviceKey || denied) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-5 p-4 text-lg sm:p-6 sm:text-xl">
-        <h1 className="text-3xl font-bold">{venue.name}: register this computer</h1>
-        <p role="status" className="rounded-xl border-2 border-black p-4 font-semibold">
+      <main className={`${SCREEN} text-lg`}>
+        <ScreenHeader account={false} nav={false} pill="Not registered" tone="info" />
+        <ScreenTitle title={`${venue.name}: register this computer`} />
+        <p role="status" className="rounded-2xl bg-[#e6f0ff] px-4 py-3 font-bold text-[#1d3f8f]">
           {denied ? "That device key was not accepted." : "This computer is not registered for classroom alerts yet."} Ask the disaster recovery team for the classroom
           device key.
         </p>
@@ -116,9 +117,9 @@ export function ClassroomAlert({ venue }: { venue: Venue }) {
         >
           <label className="flex flex-col gap-2 font-semibold">
             Classroom device key
-            <input name="key" type="password" required autoComplete="off" className="rounded-lg border-2 border-black p-4 font-normal" />
+            <input name="key" type="password" required autoComplete="off" className={FIELD} />
           </label>
-          <button type="submit" className="min-h-16 rounded-xl bg-black p-4 text-2xl font-bold text-white">
+          <button type="submit" className={`${BUTTON.base} ${BUTTON.primary} text-2xl`}>
             Register
           </button>
         </form>
@@ -134,7 +135,7 @@ export function ClassroomAlert({ venue }: { venue: Venue }) {
           FIRE ALARM
         </p>
         <div className={SCREEN}>
-          <ScreenHeader pill={`Fire alarm · ${venue.name}`} tone="alarm" home="/classroom" />
+          <ScreenHeader account={false} nav={false} pill={`Fire alarm · ${venue.name}`} tone="alarm" home="/classroom" />
           <section className="flex flex-col gap-2">
             <ScreenTitle id="alarm-title" title={repeated ? `Leave ${venue.name} now` : `Evacuate ${venue.name} now`} subtitle={<span id="alarm-text">{message}</span>} />
             {map}
@@ -154,7 +155,7 @@ export function ClassroomAlert({ venue }: { venue: Venue }) {
   const status = offline ? "Offline" : !state ? "Connecting…" : alarm && alert ? (alert.cleared ? "Room cleared" : "Evacuating") : "On watch";
   return (
     <main className={SCREEN}>
-      <ScreenHeader
+      <ScreenHeader account={false} nav={false}
         pill={status}
         tone={alarm && alert && !alert.cleared ? "alarm" : offline ? "info" : "calm"}
         home="/classroom"

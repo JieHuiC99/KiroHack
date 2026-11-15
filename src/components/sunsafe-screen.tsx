@@ -2,7 +2,9 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AccountMenu, AppNav } from "@/components/account-menu";
 import { SunSafeLogo } from "@/components/sunsafe-logo";
+import { useAccount } from "@/lib/client/account";
 import type { Turn } from "@/lib/floor/types";
 
 // The pieces every phone screen shares, in the "Your way out" style: header with a status pill,
@@ -28,25 +30,52 @@ export const BUTTON = {
 
 export type PillTone = "alarm" | "calm" | "info";
 
-export function ScreenHeader({ pill, tone, home = "/", right }: { pill?: string; tone?: PillTone; home?: string; right?: ReactNode }) {
+type HeaderProps = {
+  pill?: string;
+  tone?: PillTone;
+  home?: string;
+  right?: ReactNode;
+  /** Show the account button (who is signed in, Sign out). Off on screens with nobody signed in: sign-in, classroom computers. */
+  account?: boolean;
+  /** Show the Home / screens bar under the header. Off where it would distract, like the alarm itself. */
+  nav?: boolean;
+};
+
+export function ScreenHeader({ account = true, nav = true, ...props }: HeaderProps) {
+  return account || nav ? <SignedInHeader account={account} nav={nav} {...props} /> : <HeaderRow {...props} />;
+}
+
+/** Looks up the signed-in person once and shares it between the account button and the nav bar. */
+function SignedInHeader({ account, nav, ...props }: HeaderProps & { account: boolean; nav: boolean }) {
+  const user = useAccount();
+  return (
+    <div className="flex flex-col gap-2">
+      <HeaderRow {...props} accountMenu={account ? <AccountMenu user={user} /> : null} />
+      {nav ? <AppNav user={user} /> : null}
+    </div>
+  );
+}
+
+function HeaderRow({ pill, tone, home = "/", right, accountMenu }: Omit<HeaderProps, "account" | "nav"> & { accountMenu?: ReactNode }) {
   return (
     <header className="flex items-center justify-between gap-2">
-      <Link href={home} className="flex items-center gap-2 rounded-full pr-2 text-lg font-extrabold tracking-tight">
+      <Link href={home} className="flex min-h-11 items-center gap-2 rounded-full pr-2 text-lg font-extrabold tracking-tight">
         <SunSafeLogo />
         SunSafe
       </Link>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         {right}
         {pill ? (
           <span
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+            className={`flex min-w-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
               tone === "alarm" ? "bg-[#c62828] text-white" : tone === "info" ? "bg-[#ffe3cc] text-[#8a3f0c]" : "bg-[#dff3e8] text-[#14532d]"
             }`}
           >
-            {tone === "alarm" ? <span aria-hidden="true" className="size-2 animate-pulse rounded-full bg-white" /> : null}
-            {pill}
+            {tone === "alarm" ? <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-white" /> : null}
+            <span className="truncate">{pill}</span>
           </span>
         ) : null}
+        {accountMenu}
       </div>
     </header>
   );
