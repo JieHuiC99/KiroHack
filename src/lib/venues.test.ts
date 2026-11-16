@@ -33,9 +33,26 @@ describe("classAt (demo timetable, Malaysia time)", () => {
     for (const venue of venues) expect(classAt(venue.id, later)).toEqual(classAt(venue.id, midMorning));
   });
 
-  it("has no classes in the middle of the night or in unknown rooms", () => {
-    const night = new Date("2026-11-16T19:00:00Z"); // 03:00 in Malaysia
-    expect(venues.filter((v) => classAt(v.id, night))).toEqual([]);
+  it("has a few small late sessions overnight, fewer than in the day", () => {
+    const night = new Date("2026-11-16T16:37:00Z"); // 00:37 in Malaysia
+    const late = venues.filter((v) => classAt(v.id, night));
+    const day = venues.filter((v) => classAt(v.id, midMorning));
+    expect(late.length).toBeGreaterThan(0);
+    expect(late.length).toBeLessThan(day.length);
+    for (const venue of late) {
+      const session = classAt(venue.id, night)!;
+      expect(session).toMatchObject({ startsAt: "00:00", endsAt: "02:00" });
+      expect(session.students).toBeLessThanOrEqual(venue.seats);
+    }
+    // The 22:00 block runs past midnight on the clock.
+    const tenPm = new Date("2026-11-16T14:30:00Z");
+    for (const venue of venues) {
+      const session = classAt(venue.id, tenPm);
+      if (session) expect(session).toMatchObject({ startsAt: "22:00", endsAt: "00:00" });
+    }
+  });
+
+  it("has no classes in unknown rooms", () => {
     expect(classAt("nowhere", midMorning)).toBeNull();
   });
 });
